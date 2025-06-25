@@ -1,11 +1,11 @@
 
-import { useState, useRef } from "react";
-import { Camera, Upload, X } from "lucide-react";
+import { useState } from "react";
+import { Camera, Upload, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Expense } from "@/pages/Index";
 
@@ -15,72 +15,98 @@ interface AddExpenseSheetProps {
   onAddExpense: (expense: Expense) => void;
 }
 
-const categories = [
-  "Food", "Coffee", "Hotel", "Flights", "Transportation", "Entertainment", "Miscellaneous"
+const PRESET_CATEGORIES = [
+  "Food", "Coffee", "Hotel", "Flights", "Transportation", "Entertainment", "Other"
 ];
 
 export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseSheetProps) => {
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handlePhotoCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setIsProcessing(true);
       const reader = new FileReader();
       reader.onload = (e) => {
         setPhoto(e.target?.result as string);
-        // Here we would typically call OCR service
-        // For now, we'll simulate OCR processing
-        setTimeout(() => {
-          // Mock OCR results
-          if (!merchant) setMerchant("Sample Restaurant");
-          if (!amount) setAmount("25.99");
-          if (!category) setCategory("Food");
-          setIsProcessing(false);
-        }, 2000);
+        // Simulate OCR extraction
+        simulateOCR(file.name);
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const simulateOCR = (filename: string) => {
+    // Simple simulation - in real app, this would call OCR API
+    const mockData = {
+      merchant: filename.includes('starbucks') ? 'Starbucks' : 
+                filename.includes('hotel') ? 'Hotel California' : 
+                'Sample Merchant',
+      amount: Math.floor(Math.random() * 100) + 10,
+      category: filename.includes('coffee') ? 'Coffee' : 
+                filename.includes('hotel') ? 'Hotel' : 'Food'
+    };
+    
+    setMerchant(mockData.merchant);
+    setAmount(mockData.amount.toString());
+    setCategory(mockData.category);
+  };
+
+  const handleCategoryChange = (value: string) => {
+    if (value === "custom") {
+      setShowCustomCategory(true);
+      setCategory("");
+    } else {
+      setShowCustomCategory(false);
+      setCategory(value);
+      setCustomCategory("");
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!merchant || !amount || !category) return;
+    
+    const finalCategory = showCustomCategory && customCategory.trim() 
+      ? customCategory.trim() 
+      : category;
 
-    const newExpense: Expense = {
+    if (!merchant || !amount || !finalCategory) return;
+
+    const expense: Expense = {
       id: Date.now().toString(),
       merchant,
       amount: parseFloat(amount),
-      category,
+      category: finalCategory,
       date,
-      photo: photo || undefined,
-      notes: notes || undefined
+      notes,
+      photo,
+      createdAt: new Date().toISOString()
     };
 
-    onAddExpense(newExpense);
+    onAddExpense(expense);
     
     // Reset form
     setMerchant("");
     setAmount("");
     setCategory("");
+    setCustomCategory("");
+    setShowCustomCategory(false);
     setDate(new Date().toISOString().split('T')[0]);
     setNotes("");
     setPhoto(null);
+    
     onClose();
   };
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
+      <SheetContent side="bottom" className="h-[90vh]">
         <SheetHeader>
           <SheetTitle>Add New Expense</SheetTitle>
         </SheetHeader>
@@ -90,77 +116,58 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
           <div className="space-y-2">
             <Label>Receipt Photo</Label>
             <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => cameraInputRef.current?.click()}
-                className="flex-1"
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Take Photo
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-1"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload
-              </Button>
+              <label htmlFor="camera" className="flex-1">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400">
+                  <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                  <span className="text-sm text-gray-600">Take Photo</span>
+                </div>
+                <input
+                  id="camera"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoCapture}
+                  className="hidden"
+                />
+              </label>
+              
+              <label htmlFor="upload" className="flex-1">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400">
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                  <span className="text-sm text-gray-600">Upload</span>
+                </div>
+                <input
+                  id="upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoCapture}
+                  className="hidden"
+                />
+              </label>
             </div>
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handlePhotoCapture}
-              className="hidden"
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoCapture}
-              className="hidden"
-            />
+            
+            {photo && (
+              <div className="mt-2">
+                <img src={photo} alt="Receipt" className="w-full h-32 object-cover rounded-lg" />
+              </div>
+            )}
           </div>
 
-          {photo && (
-            <div className="relative">
-              <img src={photo} alt="Receipt" className="w-full h-48 object-cover rounded-lg border" />
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                onClick={() => setPhoto(null)}
-                className="absolute top-2 right-2"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-
-          {isProcessing && (
-            <div className="text-center text-blue-600 font-medium">
-              Processing receipt... 🔍
-            </div>
-          )}
-
-          {/* Form Fields */}
+          {/* Merchant */}
           <div className="space-y-2">
-            <Label htmlFor="merchant">Merchant Name</Label>
+            <Label htmlFor="merchant">Merchant *</Label>
             <Input
               id="merchant"
               value={merchant}
               onChange={(e) => setMerchant(e.target.value)}
-              placeholder="e.g., Starbucks"
+              placeholder="Where did you shop?"
               required
             />
           </div>
 
+          {/* Amount */}
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount</Label>
+            <Label htmlFor="amount">Amount *</Label>
             <Input
               id="amount"
               type="number"
@@ -172,22 +179,39 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
             />
           </div>
 
+          {/* Category */}
           <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={setCategory} required>
+            <Label>Category *</Label>
+            <Select onValueChange={handleCategoryChange} value={showCustomCategory ? "custom" : category}>
               <SelectTrigger>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((cat) => (
+                {PRESET_CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
                   </SelectItem>
                 ))}
+                <SelectItem value="custom">
+                  <div className="flex items-center gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add Custom Category
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
+
+            {showCustomCategory && (
+              <Input
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="Enter custom category"
+                required
+              />
+            )}
           </div>
 
+          {/* Date */}
           <div className="space-y-2">
             <Label htmlFor="date">Date</Label>
             <Input
@@ -195,10 +219,10 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              required
             />
           </div>
 
+          {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes">Notes (Optional)</Label>
             <Textarea
@@ -210,6 +234,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
             />
           </div>
 
+          {/* Submit Buttons */}
           <div className="flex gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel

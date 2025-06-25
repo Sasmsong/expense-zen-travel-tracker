@@ -1,12 +1,12 @@
-
 import { useState, useEffect } from "react";
-import { Camera, Plus, FileText, Download, ArrowLeft, Edit2, Check } from "lucide-react";
+import { Camera, Plus, FileText, Download, ArrowLeft, Edit2, Check, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExpenseList } from "@/components/ExpenseList";
 import { AddExpenseSheet } from "@/components/AddExpenseSheet";
 import { TripHeader } from "@/components/TripHeader";
 import { ExportOptions } from "@/components/ExportOptions";
+import { SpendingChart } from "@/components/SpendingChart";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useParams, useNavigate } from "react-router-dom";
@@ -22,6 +22,7 @@ const TripDetails = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempTripName, setTempTripName] = useState("");
+  const [showChart, setShowChart] = useState(false);
 
   // Load trip and expenses on component mount
   useEffect(() => {
@@ -89,6 +90,17 @@ const TripDetails = () => {
         ...trip,
         status: 'completed' as const,
         endDate: new Date().toISOString().split('T')[0]
+      };
+      saveTrip(updatedTrip);
+    }
+  };
+
+  const reopenTrip = () => {
+    if (trip) {
+      const updatedTrip = {
+        ...trip,
+        status: 'active' as const,
+        endDate: undefined
       };
       saveTrip(updatedTrip);
     }
@@ -202,26 +214,47 @@ const TripDetails = () => {
             </Card>
           </div>
 
+          {/* Chart for completed trips */}
+          {trip.status === 'completed' && expenses.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Spending Breakdown</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowChart(!showChart)}
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              {showChart && (
+                <CardContent>
+                  <SpendingChart categoryTotals={getCategoryTotals()} />
+                </CardContent>
+              )}
+            </Card>
+          )}
+
           {/* Action Buttons */}
           <div className="space-y-2">
-            {trip.status === 'active' && (
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => setIsAddExpenseOpen(true)}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
-                >
-                  <Camera className="w-4 h-4 mr-2" />
-                  Add Receipt
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsExportOpen(true)}
-                  disabled={expenses.length === 0}
-                >
-                  <Download className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setIsAddExpenseOpen(true)}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                <Camera className="w-4 h-4 mr-2" />
+                Add Receipt
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsExportOpen(true)}
+                disabled={expenses.length === 0}
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+            </div>
             
             {trip.status === 'active' && expenses.length > 0 && (
               <Button 
@@ -235,21 +268,31 @@ const TripDetails = () => {
             )}
 
             {trip.status === 'completed' && (
-              <Button 
-                onClick={() => setIsExportOpen(true)}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                View & Export Reports
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  onClick={() => setIsExportOpen(true)}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  View & Export Reports
+                </Button>
+                <Button 
+                  onClick={reopenTrip}
+                  variant="outline"
+                  className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Reopen Trip for Editing
+                </Button>
+              </div>
             )}
           </div>
 
           {/* Expense List */}
           <ExpenseList 
             expenses={expenses}
-            onDelete={trip.status === 'active' ? deleteExpense : () => {}}
-            onUpdate={trip.status === 'active' ? updateExpense : () => {}}
+            onDelete={deleteExpense}
+            onUpdate={updateExpense}
           />
 
           {expenses.length === 0 && (
@@ -261,26 +304,22 @@ const TripDetails = () => {
               <p className="text-gray-600 mb-4">
                 Start by taking a photo of your first receipt
               </p>
-              {trip.status === 'active' && (
-                <Button 
-                  onClick={() => setIsAddExpenseOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add First Receipt
-                </Button>
-              )}
+              <Button 
+                onClick={() => setIsAddExpenseOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add First Receipt
+              </Button>
             </div>
           )}
         </div>
 
-        {trip.status === 'active' && (
-          <AddExpenseSheet 
-            isOpen={isAddExpenseOpen}
-            onClose={() => setIsAddExpenseOpen(false)}
-            onAddExpense={addExpense}
-          />
-        )}
+        <AddExpenseSheet 
+          isOpen={isAddExpenseOpen}
+          onClose={() => setIsAddExpenseOpen(false)}
+          onAddExpense={addExpense}
+        />
 
         <ExportOptions
           isOpen={isExportOpen}
