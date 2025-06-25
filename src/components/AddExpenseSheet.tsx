@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Camera, Upload, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -85,8 +84,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
       category: finalCategory,
       date,
       notes,
-      photo,
-      createdAt: new Date().toISOString()
+      photo
     };
 
     onAddExpense(expense);
