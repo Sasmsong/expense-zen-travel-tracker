@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Plus, Tag } from "lucide-react";
+import { Plus, Tag, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,9 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { TagInput } from "@/components/TagInput";
 import { PhotoCapture } from "@/components/PhotoCapture";
 import { CurrencyConversion } from "@/components/CurrencyConversion";
+import { VoiceInput } from "@/components/VoiceInput";
 import { Expense } from "@/types/Expense";
 import { getStoredBaseCurrency, convertCurrency } from "@/utils/currencyUtils";
 import { isRecurringExpense, getSuggestedCategory } from "@/utils/recurringUtils";
+import { useToast } from "@/hooks/use-toast";
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -40,9 +42,19 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
   const [originalCurrency, setOriginalCurrency] = useState("");
   const [showCurrencyConversion, setShowCurrencyConversion] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [merchantSuggestions, setMerchantSuggestions] = useState<string[]>([]);
 
   const baseCurrency = getStoredBaseCurrency();
+  const { toast } = useToast();
 
+  // Get merchant suggestions
+  useEffect(() => {
+    const uniqueMerchants = [...new Set(existingExpenses.map(e => e.merchant))];
+    setMerchantSuggestions(uniqueMerchants);
+  }, [existingExpenses]);
+
+  // Check for recurring expenses
   useEffect(() => {
     if (merchant.trim() && existingExpenses.length > 0) {
       const recurring = isRecurringExpense(merchant, existingExpenses);
@@ -70,6 +82,12 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     setMerchant(mockData.merchant);
     setAmount(mockData.amount.toString());
     setCategory(mockData.category);
+  };
+
+  const handleVoiceResult = (result: { merchant: string; amount: string; category?: string }) => {
+    if (result.merchant) setMerchant(result.merchant);
+    if (result.amount) setAmount(result.amount);
+    if (result.category) setCategory(result.category);
   };
 
   const handleCategoryChange = (value: string) => {
@@ -104,6 +122,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     setOriginalCurrency("");
     setShowCurrencyConversion(false);
     setIsRecurring(false);
+    setShowSuccessAnimation(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -137,9 +156,24 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     };
 
     onAddExpense(expense);
-    resetForm();
-    onClose();
+    
+    // Show success animation
+    setShowSuccessAnimation(true);
+    toast({
+      title: "Expense added!",
+      description: `${merchant} - ${finalAmount.toFixed(2)} ${baseCurrency}`,
+    });
+    
+    setTimeout(() => {
+      resetForm();
+      onClose();
+    }, 1500);
   };
+
+  const filteredSuggestions = merchantSuggestions.filter(suggestion =>
+    suggestion.toLowerCase().includes(merchant.toLowerCase()) && 
+    suggestion !== merchant
+  ).slice(0, 5);
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -148,6 +182,15 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
           <SheetTitle>Add New Expense</SheetTitle>
         </SheetHeader>
 
+        {showSuccessAnimation && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+            <div className="bg-white rounded-lg p-6 flex flex-col items-center animate-scale-in">
+              <CheckCircle className="w-16 h-16 text-green-500 mb-2" />
+              <p className="text-lg font-semibold">Expense Added!</p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4 mt-6">
           <PhotoCapture 
             photo={photo}
@@ -155,16 +198,36 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
             onPhotoCapture={simulateOCR}
           />
 
-          {/* Merchant */}
+          {/* Voice Input and Merchant */}
           <div className="space-y-2">
-            <Label htmlFor="merchant">Merchant *</Label>
-            <Input
-              id="merchant"
-              value={merchant}
-              onChange={(e) => setMerchant(e.target.value)}
-              placeholder="Where did you shop?"
-              required
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="merchant">Merchant *</Label>
+              <VoiceInput onVoiceResult={handleVoiceResult} />
+            </div>
+            <div className="relative">
+              <Input
+                id="merchant"
+                value={merchant}
+                onChange={(e) => setMerchant(e.target.value)}
+                placeholder="Where did you shop?"
+                required
+              />
+              {/* Merchant suggestions */}
+              {merchant && filteredSuggestions.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                  {filteredSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
+                      onClick={() => setMerchant(suggestion)}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {isRecurring && (
               <Badge className="bg-blue-100 text-blue-800">
                 <Tag className="w-3 h-3 mr-1" />

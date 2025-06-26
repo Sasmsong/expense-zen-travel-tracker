@@ -1,8 +1,12 @@
+
 import { useState, useEffect } from "react";
-import { Camera, Plus, FileText, Download, ArrowLeft, Edit2, Check, BarChart3 } from "lucide-react";
+import { Camera, Plus, FileText, Download, ArrowLeft, Edit2, Check, BarChart3, Map as MapIcon, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExpenseList } from "@/components/ExpenseList";
+import { ExpenseFilter } from "@/components/ExpenseFilter";
+import { MapView } from "@/components/MapView";
 import { AddExpenseSheet } from "@/components/AddExpenseSheet";
 import { TripHeader } from "@/components/TripHeader";
 import { ExportOptions } from "@/components/ExportOptions";
@@ -11,18 +15,20 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useParams, useNavigate } from "react-router-dom";
 import { Trip } from "@/types/Trip";
-import { Expense } from "@/pages/Index";
+import { Expense } from "@/types/Expense";
 
 const TripDetails = () => {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempTripName, setTempTripName] = useState("");
   const [showChart, setShowChart] = useState(false);
+  const [activeTab, setActiveTab] = useState('expenses');
 
   // Load trip and expenses on component mount
   useEffect(() => {
@@ -42,7 +48,9 @@ const TripDetails = () => {
     // Load expenses for this trip
     const savedExpenses = localStorage.getItem(`trip-${tripId}-expenses`);
     if (savedExpenses) {
-      setExpenses(JSON.parse(savedExpenses));
+      const loadedExpenses = JSON.parse(savedExpenses);
+      setExpenses(loadedExpenses);
+      setFilteredExpenses(loadedExpenses);
     }
   }, [tripId]);
 
@@ -59,6 +67,7 @@ const TripDetails = () => {
   const saveExpenses = (newExpenses: Expense[]) => {
     localStorage.setItem(`trip-${tripId}-expenses`, JSON.stringify(newExpenses));
     setExpenses(newExpenses);
+    setFilteredExpenses(newExpenses);
   };
 
   const addExpense = (expense: Expense) => {
@@ -107,12 +116,12 @@ const TripDetails = () => {
   };
 
   const getTotalAmount = () => {
-    return expenses.reduce((total, expense) => total + expense.amount, 0);
+    return filteredExpenses.reduce((total, expense) => total + expense.amount, 0);
   };
 
   const getCategoryTotals = () => {
     const totals: { [key: string]: number } = {};
-    expenses.forEach(expense => {
+    filteredExpenses.forEach(expense => {
       totals[expense.category] = (totals[expense.category] || 0) + expense.amount;
     });
     return totals;
@@ -189,130 +198,159 @@ const TripDetails = () => {
             tripName={trip.name}
             onTripChange={() => {}} // Name editing handled above
             totalAmount={getTotalAmount()}
-            expenseCount={expenses.length}
+            expenseCount={filteredExpenses.length}
           />
         </div>
 
-        <div className="p-4 space-y-4">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  ${getTotalAmount().toFixed(2)}
-                </div>
-                <div className="text-sm text-gray-600">Total Spent</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {expenses.length}
-                </div>
-                <div className="text-sm text-gray-600">Receipts</div>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="p-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="expenses">Expenses</TabsTrigger>
+              <TabsTrigger value="chart">Analytics</TabsTrigger>
+              <TabsTrigger value="map">Map</TabsTrigger>
+            </TabsList>
 
-          {/* Chart for completed trips */}
-          {trip.status === 'completed' && expenses.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Spending Breakdown</CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowChart(!showChart)}
+            <TabsContent value="expenses" className="space-y-4 mt-4">
+              {/* Quick Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      ${getTotalAmount().toFixed(2)}
+                    </div>
+                    <div className="text-sm text-gray-600">Total Spent</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {filteredExpenses.length}
+                    </div>
+                    <div className="text-sm text-gray-600">Receipts</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Filters */}
+              <ExpenseFilter
+                expenses={expenses}
+                onFilteredExpenses={setFilteredExpenses}
+              />
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => setIsAddExpenseOpen(true)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
                   >
-                    <BarChart3 className="w-4 h-4" />
+                    <Camera className="w-4 h-4 mr-2" />
+                    Add Receipt
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsExportOpen(true)}
+                    disabled={expenses.length === 0}
+                  >
+                    <Download className="w-4 h-4" />
                   </Button>
                 </div>
-              </CardHeader>
-              {showChart && (
-                <CardContent>
-                  <SpendingChart categoryTotals={getCategoryTotals()} />
-                </CardContent>
-              )}
-            </Card>
-          )}
+                
+                {trip.status === 'active' && expenses.length > 0 && (
+                  <Button 
+                    onClick={completeTrip}
+                    variant="outline"
+                    className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Mark Trip as Complete
+                  </Button>
+                )}
 
-          {/* Action Buttons */}
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => setIsAddExpenseOpen(true)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Add Receipt
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsExportOpen(true)}
-                disabled={expenses.length === 0}
-              >
-                <Download className="w-4 h-4" />
-              </Button>
-            </div>
-            
-            {trip.status === 'active' && expenses.length > 0 && (
-              <Button 
-                onClick={completeTrip}
-                variant="outline"
-                className="w-full border-green-600 text-green-600 hover:bg-green-50"
-              >
-                <Check className="w-4 h-4 mr-2" />
-                Mark Trip as Complete
-              </Button>
-            )}
-
-            {trip.status === 'completed' && (
-              <div className="space-y-2">
-                <Button 
-                  onClick={() => setIsExportOpen(true)}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  View & Export Reports
-                </Button>
-                <Button 
-                  onClick={reopenTrip}
-                  variant="outline"
-                  className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
-                >
-                  <Edit2 className="w-4 h-4 mr-2" />
-                  Reopen Trip for Editing
-                </Button>
+                {trip.status === 'completed' && (
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={() => setIsExportOpen(true)}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      View & Export Reports
+                    </Button>
+                    <Button 
+                      onClick={reopenTrip}
+                      variant="outline"
+                      className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                    >
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      Reopen Trip for Editing
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Expense List */}
-          <ExpenseList 
-            expenses={expenses}
-            onDelete={deleteExpense}
-            onUpdate={updateExpense}
-          />
+              {/* Expense List */}
+              <ExpenseList 
+                expenses={filteredExpenses}
+                onDelete={deleteExpense}
+                onUpdate={updateExpense}
+              />
 
-          {expenses.length === 0 && (
-            <div className="text-center py-12">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No expenses yet
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Start by taking a photo of your first receipt
-              </p>
-              <Button 
-                onClick={() => setIsAddExpenseOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add First Receipt
-              </Button>
-            </div>
-          )}
+              {filteredExpenses.length === 0 && expenses.length > 0 && (
+                <div className="text-center py-8">
+                  <Filter className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600">No expenses match your filters</p>
+                </div>
+              )}
+
+              {expenses.length === 0 && (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No expenses yet
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Start by taking a photo of your first receipt
+                  </p>
+                  <Button 
+                    onClick={() => setIsAddExpenseOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add First Receipt
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="chart" className="mt-4">
+              {expenses.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Spending Breakdown</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <SpendingChart categoryTotals={getCategoryTotals()} />
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="text-center py-12">
+                  <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Add expenses to see analytics</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="map" className="mt-4">
+              {expenses.length > 0 ? (
+                <MapView expenses={filteredExpenses} />
+              ) : (
+                <div className="text-center py-12">
+                  <MapIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Add expenses to see locations on map</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
 
         <AddExpenseSheet 
