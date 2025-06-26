@@ -13,4 +13,9 @@ export interface Expense {
   originalCurrency?: string;
   exchangeRate?: number;
   isRecurring?: boolean;
+  location?: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
 }
