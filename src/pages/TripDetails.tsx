@@ -319,6 +319,7 @@ const TripDetails = () => {
           isOpen={isAddExpenseOpen}
           onClose={() => setIsAddExpenseOpen(false)}
           onAddExpense={addExpense}
+          existingExpenses={expenses}
         />
 
         <ExportOptions

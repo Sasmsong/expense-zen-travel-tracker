@@ -1,24 +1,31 @@
-import { useState } from "react";
-import { Camera, Upload, Plus } from "lucide-react";
+
+import { useState, useEffect } from "react";
+import { Camera, Upload, Plus, Tag, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Expense } from "@/pages/Index";
+import { Badge } from "@/components/ui/badge";
+import { TagInput } from "@/components/TagInput";
+import { CurrencySelector } from "@/components/CurrencySelector";
+import { Expense } from "@/types/Expense";
+import { getStoredBaseCurrency, convertCurrency, formatCurrency } from "@/utils/currencyUtils";
+import { isRecurringExpense, getSuggestedCategory } from "@/utils/recurringUtils";
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onAddExpense: (expense: Expense) => void;
+  existingExpenses?: Expense[];
 }
 
 const PRESET_CATEGORIES = [
   "Food", "Coffee", "Hotel", "Flights", "Transportation", "Entertainment", "Other"
 ];
 
-export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseSheetProps) => {
+export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpenses = [] }: AddExpenseSheetProps) => {
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
@@ -27,6 +34,28 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [currency, setCurrency] = useState(getStoredBaseCurrency());
+  const [originalAmount, setOriginalAmount] = useState("");
+  const [originalCurrency, setOriginalCurrency] = useState("");
+  const [showCurrencyConversion, setShowCurrencyConversion] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
+
+  const baseCurrency = getStoredBaseCurrency();
+
+  useEffect(() => {
+    if (merchant.trim() && existingExpenses.length > 0) {
+      const recurring = isRecurringExpense(merchant, existingExpenses);
+      setIsRecurring(recurring);
+      
+      if (recurring) {
+        const suggestedCategory = getSuggestedCategory(merchant, existingExpenses);
+        if (suggestedCategory && !category) {
+          setCategory(suggestedCategory);
+        }
+      }
+    }
+  }, [merchant, existingExpenses, category]);
 
   const handlePhotoCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -34,7 +63,6 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
       const reader = new FileReader();
       reader.onload = (e) => {
         setPhoto(e.target?.result as string);
-        // Simulate OCR extraction
         simulateOCR(file.name);
       };
       reader.readAsDataURL(file);
@@ -42,7 +70,6 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
   };
 
   const simulateOCR = (filename: string) => {
-    // Simple simulation - in real app, this would call OCR API
     const mockData = {
       merchant: filename.includes('starbucks') ? 'Starbucks' : 
                 filename.includes('hotel') ? 'Hotel California' : 
@@ -68,6 +95,13 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
     }
   };
 
+  const getConvertedAmount = () => {
+    if (!showCurrencyConversion || !originalAmount || !originalCurrency) {
+      return parseFloat(amount) || 0;
+    }
+    return convertCurrency(parseFloat(originalAmount), originalCurrency, baseCurrency);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -77,14 +111,25 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
 
     if (!merchant || !amount || !finalCategory) return;
 
+    const finalAmount = getConvertedAmount();
+    const exchangeRate = showCurrencyConversion && originalAmount && originalCurrency
+      ? finalAmount / parseFloat(originalAmount)
+      : undefined;
+
     const expense: Expense = {
       id: Date.now().toString(),
       merchant,
-      amount: parseFloat(amount),
+      amount: finalAmount,
       category: finalCategory,
       date,
       notes,
-      photo
+      photo,
+      tags,
+      currency: baseCurrency,
+      originalAmount: showCurrencyConversion ? parseFloat(originalAmount) : undefined,
+      originalCurrency: showCurrencyConversion ? originalCurrency : undefined,
+      exchangeRate,
+      isRecurring
     };
 
     onAddExpense(expense);
@@ -98,13 +143,19 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
     setDate(new Date().toISOString().split('T')[0]);
     setNotes("");
     setPhoto(null);
+    setTags([]);
+    setCurrency(baseCurrency);
+    setOriginalAmount("");
+    setOriginalCurrency("");
+    setShowCurrencyConversion(false);
+    setIsRecurring(false);
     
     onClose();
   };
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="h-[90vh]">
+      <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Add New Expense</SheetTitle>
         </SheetHeader>
@@ -161,20 +212,70 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
               placeholder="Where did you shop?"
               required
             />
+            {isRecurring && (
+              <Badge className="bg-blue-100 text-blue-800">
+                <Tag className="w-3 h-3 mr-1" />
+                Recurring
+              </Badge>
+            )}
           </div>
 
-          {/* Amount */}
+          {/* Currency Conversion */}
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount *</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              required
-            />
+            <div className="flex items-center justify-between">
+              <Label>Amount *</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCurrencyConversion(!showCurrencyConversion)}
+              >
+                <DollarSign className="w-4 h-4 mr-1" />
+                {showCurrencyConversion ? 'Hide' : 'Convert'} Currency
+              </Button>
+            </div>
+            
+            {showCurrencyConversion ? (
+              <div className="space-y-3 p-3 border rounded-lg bg-gray-50">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="originalAmount">Original Amount</Label>
+                    <Input
+                      id="originalAmount"
+                      type="number"
+                      step="0.01"
+                      value={originalAmount}
+                      onChange={(e) => setOriginalAmount(e.target.value)}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Original Currency</Label>
+                    <CurrencySelector
+                      value={originalCurrency}
+                      onValueChange={setOriginalCurrency}
+                      placeholder="Currency"
+                    />
+                  </div>
+                </div>
+                {originalAmount && originalCurrency && (
+                  <div className="text-sm text-gray-600">
+                    = {formatCurrency(getConvertedAmount(), baseCurrency)} (converted to {baseCurrency})
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            )}
           </div>
 
           {/* Category */}
@@ -218,6 +319,12 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense }: AddExpenseShe
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <TagInput tags={tags} onTagsChange={setTags} />
           </div>
 
           {/* Notes */}

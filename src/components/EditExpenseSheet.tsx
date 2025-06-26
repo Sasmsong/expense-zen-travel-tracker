@@ -1,13 +1,17 @@
 
 import { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Tag, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Expense } from "@/pages/Index";
+import { Badge } from "@/components/ui/badge";
+import { TagInput } from "@/components/TagInput";
+import { CurrencySelector } from "@/components/CurrencySelector";
+import { Expense } from "@/types/Expense";
+import { getStoredBaseCurrency, convertCurrency, formatCurrency } from "@/utils/currencyUtils";
 
 interface EditExpenseSheetProps {
   expense: Expense;
@@ -28,6 +32,13 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
   const [showCustomCategory, setShowCustomCategory] = useState(false);
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [currency, setCurrency] = useState(getStoredBaseCurrency());
+  const [originalAmount, setOriginalAmount] = useState("");
+  const [originalCurrency, setOriginalCurrency] = useState("");
+  const [showCurrencyConversion, setShowCurrencyConversion] = useState(false);
+
+  const baseCurrency = getStoredBaseCurrency();
 
   useEffect(() => {
     if (expense) {
@@ -47,8 +58,17 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
       
       setDate(expense.date);
       setNotes(expense.notes || "");
+      setTags(expense.tags || []);
+      setCurrency(expense.currency || baseCurrency);
+      
+      // Set up currency conversion if original currency data exists
+      if (expense.originalAmount && expense.originalCurrency) {
+        setOriginalAmount(expense.originalAmount.toString());
+        setOriginalCurrency(expense.originalCurrency);
+        setShowCurrencyConversion(true);
+      }
     }
-  }, [expense]);
+  }, [expense, baseCurrency]);
 
   const handleCategoryChange = (value: string) => {
     if (value === "custom") {
@@ -61,6 +81,13 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
     }
   };
 
+  const getConvertedAmount = () => {
+    if (!showCurrencyConversion || !originalAmount || !originalCurrency) {
+      return parseFloat(amount) || 0;
+    }
+    return convertCurrency(parseFloat(originalAmount), originalCurrency, baseCurrency);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -70,13 +97,23 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
 
     if (!merchant || !amount || !finalCategory) return;
 
+    const finalAmount = getConvertedAmount();
+    const exchangeRate = showCurrencyConversion && originalAmount && originalCurrency
+      ? finalAmount / parseFloat(originalAmount)
+      : expense.exchangeRate;
+
     const updatedExpense: Expense = {
       ...expense,
       merchant,
-      amount: parseFloat(amount),
+      amount: finalAmount,
       category: finalCategory,
       date,
-      notes
+      notes,
+      tags,
+      currency: baseCurrency,
+      originalAmount: showCurrencyConversion ? parseFloat(originalAmount) : undefined,
+      originalCurrency: showCurrencyConversion ? originalCurrency : undefined,
+      exchangeRate
     };
 
     onUpdate(expense.id, updatedExpense);
@@ -85,7 +122,7 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="h-[80vh]">
+      <SheetContent side="bottom" className="h-[80vh] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Edit Expense</SheetTitle>
         </SheetHeader>
@@ -109,20 +146,70 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
               placeholder="Where did you shop?"
               required
             />
+            {expense.isRecurring && (
+              <Badge className="bg-blue-100 text-blue-800">
+                <Tag className="w-3 h-3 mr-1" />
+                Recurring
+              </Badge>
+            )}
           </div>
 
-          {/* Amount */}
+          {/* Currency Conversion */}
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount *</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              required
-            />
+            <div className="flex items-center justify-between">
+              <Label>Amount *</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCurrencyConversion(!showCurrencyConversion)}
+              >
+                <DollarSign className="w-4 h-4 mr-1" />
+                {showCurrencyConversion ? 'Hide' : 'Convert'} Currency
+              </Button>
+            </div>
+            
+            {showCurrencyConversion ? (
+              <div className="space-y-3 p-3 border rounded-lg bg-gray-50">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="originalAmount">Original Amount</Label>
+                    <Input
+                      id="originalAmount"
+                      type="number"
+                      step="0.01"
+                      value={originalAmount}
+                      onChange={(e) => setOriginalAmount(e.target.value)}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Original Currency</Label>
+                    <CurrencySelector
+                      value={originalCurrency}
+                      onValueChange={setOriginalCurrency}
+                      placeholder="Currency"
+                    />
+                  </div>
+                </div>
+                {originalAmount && originalCurrency && (
+                  <div className="text-sm text-gray-600">
+                    = {formatCurrency(getConvertedAmount(), baseCurrency)} (converted to {baseCurrency})
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            )}
           </div>
 
           {/* Category */}
@@ -166,6 +253,12 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <TagInput tags={tags} onTagsChange={setTags} />
           </div>
 
           {/* Notes */}

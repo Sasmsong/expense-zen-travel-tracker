@@ -1,11 +1,12 @@
 
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Tag, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EditExpenseSheet } from "@/components/EditExpenseSheet";
-import { Expense } from "@/pages/Index";
+import { Expense } from "@/types/Expense";
+import { formatCurrency } from "@/utils/currencyUtils";
 
 interface ExpenseListProps {
   expenses: Expense[];
@@ -46,6 +47,12 @@ export const ExpenseList = ({ expenses, onDelete, onUpdate }: ExpenseListProps) 
                   <Badge className={getCategoryColor(expense.category)}>
                     {expense.category}
                   </Badge>
+                  {expense.isRecurring && (
+                    <Badge className="bg-blue-100 text-blue-800">
+                      <Tag className="w-3 h-3 mr-1" />
+                      Recurring
+                    </Badge>
+                  )}
                 </div>
                 <div className="text-sm text-gray-600">
                   {new Date(expense.date).toLocaleDateString()}
@@ -53,8 +60,14 @@ export const ExpenseList = ({ expenses, onDelete, onUpdate }: ExpenseListProps) 
               </div>
               <div className="text-right">
                 <div className="text-lg font-bold text-gray-900">
-                  ${expense.amount.toFixed(2)}
+                  {formatCurrency(expense.amount, expense.currency || 'USD')}
                 </div>
+                {expense.originalAmount && expense.originalCurrency && (
+                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                    <DollarSign className="w-3 h-3" />
+                    {formatCurrency(expense.originalAmount, expense.originalCurrency)}
+                  </div>
+                )}
                 <div className="flex gap-1 mt-1">
                   <Button
                     size="sm"
@@ -73,6 +86,17 @@ export const ExpenseList = ({ expenses, onDelete, onUpdate }: ExpenseListProps) 
                 </div>
               </div>
             </div>
+
+            {/* Tags */}
+            {expense.tags && expense.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {expense.tags.map((tag) => (
+                  <Badge key={tag} variant="outline" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
             
             {expense.photo && (
               <div className="mt-3">
