@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Camera, Upload, Plus, Tag, DollarSign } from "lucide-react";
+import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { TagInput } from "@/components/TagInput";
-import { CurrencySelector } from "@/components/CurrencySelector";
+import { PhotoCapture } from "@/components/PhotoCapture";
+import { CurrencyConversion } from "@/components/CurrencyConversion";
 import { Expense } from "@/types/Expense";
-import { getStoredBaseCurrency, convertCurrency, formatCurrency } from "@/utils/currencyUtils";
+import { getStoredBaseCurrency, convertCurrency } from "@/utils/currencyUtils";
 import { isRecurringExpense, getSuggestedCategory } from "@/utils/recurringUtils";
 
 interface AddExpenseSheetProps {
@@ -35,7 +36,6 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
-  const [currency, setCurrency] = useState(getStoredBaseCurrency());
   const [originalAmount, setOriginalAmount] = useState("");
   const [originalCurrency, setOriginalCurrency] = useState("");
   const [showCurrencyConversion, setShowCurrencyConversion] = useState(false);
@@ -56,18 +56,6 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
       }
     }
   }, [merchant, existingExpenses, category]);
-
-  const handlePhotoCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPhoto(e.target?.result as string);
-        simulateOCR(file.name);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const simulateOCR = (filename: string) => {
     const mockData = {
@@ -102,6 +90,22 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     return convertCurrency(parseFloat(originalAmount), originalCurrency, baseCurrency);
   };
 
+  const resetForm = () => {
+    setMerchant("");
+    setAmount("");
+    setCategory("");
+    setCustomCategory("");
+    setShowCustomCategory(false);
+    setDate(new Date().toISOString().split('T')[0]);
+    setNotes("");
+    setPhoto(null);
+    setTags([]);
+    setOriginalAmount("");
+    setOriginalCurrency("");
+    setShowCurrencyConversion(false);
+    setIsRecurring(false);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -109,7 +113,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
       ? customCategory.trim() 
       : category;
 
-    if (!merchant || !amount || !finalCategory) return;
+    if (!merchant || (!amount && !originalAmount) || !finalCategory) return;
 
     const finalAmount = getConvertedAmount();
     const exchangeRate = showCurrencyConversion && originalAmount && originalCurrency
@@ -133,23 +137,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     };
 
     onAddExpense(expense);
-    
-    // Reset form
-    setMerchant("");
-    setAmount("");
-    setCategory("");
-    setCustomCategory("");
-    setShowCustomCategory(false);
-    setDate(new Date().toISOString().split('T')[0]);
-    setNotes("");
-    setPhoto(null);
-    setTags([]);
-    setCurrency(baseCurrency);
-    setOriginalAmount("");
-    setOriginalCurrency("");
-    setShowCurrencyConversion(false);
-    setIsRecurring(false);
-    
+    resetForm();
     onClose();
   };
 
@@ -161,46 +149,11 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-          {/* Photo Capture */}
-          <div className="space-y-2">
-            <Label>Receipt Photo</Label>
-            <div className="flex gap-2">
-              <label htmlFor="camera" className="flex-1">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400">
-                  <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                  <span className="text-sm text-gray-600">Take Photo</span>
-                </div>
-                <input
-                  id="camera"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handlePhotoCapture}
-                  className="hidden"
-                />
-              </label>
-              
-              <label htmlFor="upload" className="flex-1">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400">
-                  <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                  <span className="text-sm text-gray-600">Upload</span>
-                </div>
-                <input
-                  id="upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoCapture}
-                  className="hidden"
-                />
-              </label>
-            </div>
-            
-            {photo && (
-              <div className="mt-2">
-                <img src={photo} alt="Receipt" className="w-full h-32 object-cover rounded-lg" />
-              </div>
-            )}
-          </div>
+          <PhotoCapture 
+            photo={photo}
+            onPhotoChange={setPhoto}
+            onPhotoCapture={simulateOCR}
+          />
 
           {/* Merchant */}
           <div className="space-y-2">
@@ -220,63 +173,18 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
             )}
           </div>
 
-          {/* Currency Conversion */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Amount *</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCurrencyConversion(!showCurrencyConversion)}
-              >
-                <DollarSign className="w-4 h-4 mr-1" />
-                {showCurrencyConversion ? 'Hide' : 'Convert'} Currency
-              </Button>
-            </div>
-            
-            {showCurrencyConversion ? (
-              <div className="space-y-3 p-3 border rounded-lg bg-gray-50">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label htmlFor="originalAmount">Original Amount</Label>
-                    <Input
-                      id="originalAmount"
-                      type="number"
-                      step="0.01"
-                      value={originalAmount}
-                      onChange={(e) => setOriginalAmount(e.target.value)}
-                      placeholder="0.00"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label>Original Currency</Label>
-                    <CurrencySelector
-                      value={originalCurrency}
-                      onValueChange={setOriginalCurrency}
-                      placeholder="Currency"
-                    />
-                  </div>
-                </div>
-                {originalAmount && originalCurrency && (
-                  <div className="text-sm text-gray-600">
-                    = {formatCurrency(getConvertedAmount(), baseCurrency)} (converted to {baseCurrency})
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                required
-              />
-            )}
-          </div>
+          <CurrencyConversion
+            showCurrencyConversion={showCurrencyConversion}
+            onToggle={() => setShowCurrencyConversion(!showCurrencyConversion)}
+            amount={amount}
+            onAmountChange={setAmount}
+            originalAmount={originalAmount}
+            onOriginalAmountChange={setOriginalAmount}
+            originalCurrency={originalCurrency}
+            onOriginalCurrencyChange={setOriginalCurrency}
+            convertedAmount={getConvertedAmount()}
+            baseCurrency={baseCurrency}
+          />
 
           {/* Category */}
           <div className="space-y-2">
