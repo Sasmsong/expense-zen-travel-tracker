@@ -69,10 +69,10 @@ const Settings = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-md mx-auto bg-white min-h-screen">
+    <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+      <div className={`max-w-md mx-auto min-h-screen ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4" style={{ background: `linear-gradient(to right, ${accentColor}, ${accentColor}dd)` }}>
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -88,9 +88,9 @@ const Settings = () => {
 
         <div className="p-4 space-y-6">
           {/* Appearance */}
-          <Card>
+          <Card className={theme === 'dark' ? 'bg-gray-700 border-gray-600' : ''}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className={`flex items-center gap-2 ${theme === 'dark' ? 'text-white' : ''}`}>
                 <Palette className="w-5 h-5" />
                 Appearance
               </CardTitle>
@@ -99,7 +99,7 @@ const Settings = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                  <Label>Dark Mode</Label>
+                  <Label className={theme === 'dark' ? 'text-white' : ''}>Dark Mode</Label>
                 </div>
                 <Switch
                   checked={theme === 'dark'}
@@ -108,7 +108,7 @@ const Settings = () => {
               </div>
 
               <div>
-                <Label className="text-sm font-medium">Accent Color</Label>
+                <Label className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : ''}`}>Accent Color</Label>
                 <div className="grid grid-cols-6 gap-2 mt-2">
                   {accentColors.map((color) => (
                     <button
@@ -126,9 +126,9 @@ const Settings = () => {
           </Card>
 
           {/* Currency */}
-          <Card>
+          <Card className={theme === 'dark' ? 'bg-gray-700 border-gray-600' : ''}>
             <CardHeader>
-              <CardTitle>Default Currency</CardTitle>
+              <CardTitle className={theme === 'dark' ? 'text-white' : ''}>Default Currency</CardTitle>
             </CardHeader>
             <CardContent>
               <CurrencySelector
@@ -140,16 +140,16 @@ const Settings = () => {
           </Card>
 
           {/* Notifications */}
-          <Card>
+          <Card className={theme === 'dark' ? 'bg-gray-700 border-gray-600' : ''}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className={`flex items-center gap-2 ${theme === 'dark' ? 'text-white' : ''}`}>
                 <Bell className="w-5 h-5" />
                 Reminders
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label>Expense Reminders</Label>
+                <Label className={theme === 'dark' ? 'text-white' : ''}>Expense Reminders</Label>
                 <Switch
                   checked={reminderEnabled}
                   onCheckedChange={setReminderEnabled}
@@ -158,13 +158,13 @@ const Settings = () => {
               
               {reminderEnabled && (
                 <div>
-                  <Label htmlFor="reminderTime">Daily Reminder Time</Label>
+                  <Label htmlFor="reminderTime" className={theme === 'dark' ? 'text-white' : ''}>Daily Reminder Time</Label>
                   <Input
                     id="reminderTime"
                     type="time"
                     value={reminderTime}
                     onChange={(e) => setReminderTime(e.target.value)}
-                    className="mt-1"
+                    className={`mt-1 ${theme === 'dark' ? 'bg-gray-600 border-gray-500 text-white' : ''}`}
                   />
                 </div>
               )}
@@ -172,16 +172,16 @@ const Settings = () => {
           </Card>
 
           {/* Backup */}
-          <Card>
+          <Card className={theme === 'dark' ? 'bg-gray-700 border-gray-600' : ''}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className={`flex items-center gap-2 ${theme === 'dark' ? 'text-white' : ''}`}>
                 <Cloud className="w-5 h-5" />
                 Backup & Export
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label>Cloud Backup</Label>
+                <Label className={theme === 'dark' ? 'text-white' : ''}>Cloud Backup</Label>
                 <Switch
                   checked={cloudBackupEnabled}
                   onCheckedChange={setCloudBackupEnabled}
@@ -199,9 +199,15 @@ const Settings = () => {
               </div>
               
               {cloudBackupEnabled && (
-                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+                <div className={`text-sm p-3 rounded ${theme === 'dark' ? 'text-gray-300 bg-gray-600' : 'text-gray-600 bg-blue-50'}`}>
                   <p>Connect your Google Drive or Dropbox account to automatically backup your trips and expenses.</p>
-                  <Button size="sm" className="mt-2">Connect Drive</Button>
+                  <Button 
+                    size="sm" 
+                    className="mt-2"
+                    style={{ backgroundColor: accentColor }}
+                  >
+                    Connect Drive
+                  </Button>
                 </div>
               )}
             </CardContent>

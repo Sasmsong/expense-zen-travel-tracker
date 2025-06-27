@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Plus, Tag, DollarSign, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -192,7 +193,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
                   id="merchant"
                   value={merchant}
                   onChange={(e) => setMerchant(e.target.value)}
-                  placeholder="Where did you shop?"
+                  placeholder="What did you buy?"
                   required
                   className="flex-1 transition-all duration-200 focus:scale-[1.02]"
                 />
