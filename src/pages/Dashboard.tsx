@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Plus, BarChart3, Settings, MapPin, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,8 +52,9 @@ const Dashboard = () => {
       name: `Trip ${trips.length + 1}`,
       startDate: new Date().toISOString().split('T')[0],
       status: 'active',
-      budget: 0,
-      currency: 'USD'
+      totalAmount: 0,
+      expenseCount: 0,
+      createdAt: new Date().toISOString()
     };
 
     const updatedTrips = [...trips, newTrip];
@@ -150,7 +150,7 @@ const Dashboard = () => {
                             <div className="flex justify-between items-center">
                               <div>
                                 <div className="text-xl font-bold text-green-600">
-                                  {formatCurrency(tripTotal, trip.currency || 'USD')}
+                                  {formatCurrency(tripTotal, 'USD')}
                                 </div>
                                 <div className="text-sm text-gray-500">
                                   {expenseCount} {expenseCount === 1 ? 'expense' : 'expenses'}

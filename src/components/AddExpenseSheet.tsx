@@ -76,7 +76,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
   const getSmartSuggestions = () => {
     const recurringMerchants = getRecurringExpenses(existingExpenses).map(expense => expense.merchant);
     const uniqueMerchants = [...new Set(recurringMerchants)];
-    return uniqueMerchants.filter(item =>
+    return uniqueMerchants.filter((item: string) =>
       item.toLowerCase().includes(merchant.toLowerCase()) && item !== merchant
     );
   };
@@ -201,7 +201,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
               {/* Smart suggestions */}
               {merchant && (
                 <div className="flex flex-wrap gap-1">
-                  {getSmartSuggestions().map((suggestion) => (
+                  {getSmartSuggestions().map((suggestion: string) => (
                     <Button
                       key={suggestion}
                       type="button"

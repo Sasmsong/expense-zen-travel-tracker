@@ -44,6 +44,15 @@ export const analyzeRecurringExpenses = (expenses: Expense[]): RecurringPattern[
   return patterns.sort((a, b) => b.frequency - a.frequency);
 };
 
+export const getRecurringExpenses = (expenses: Expense[]): Expense[] => {
+  const patterns = analyzeRecurringExpenses(expenses);
+  const recurringMerchants = patterns.map(p => p.merchant.toLowerCase());
+  
+  return expenses.filter(expense => 
+    recurringMerchants.includes(expense.merchant.toLowerCase())
+  );
+};
+
 export const isRecurringExpense = (merchant: string, allExpenses: Expense[]): boolean => {
   const patterns = analyzeRecurringExpenses(allExpenses);
   return patterns.some(pattern => 

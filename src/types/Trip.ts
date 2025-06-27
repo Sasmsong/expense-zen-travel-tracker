@@ -9,4 +9,6 @@ export interface Trip {
   totalAmount: number;
   expenseCount: number;
   createdAt: string;
+  budget?: number;
+  currency?: string;
 }

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Camera, Plus, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -128,6 +127,7 @@ const Index = () => {
           isOpen={isAddExpenseOpen}
           onClose={() => setIsAddExpenseOpen(false)}
           onAddExpense={addExpense}
+          existingExpenses={expenses}
         />
 
         <ExportOptions
