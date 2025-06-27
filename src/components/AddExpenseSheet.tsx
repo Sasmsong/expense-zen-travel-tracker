@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { Plus, Tag, CheckCircle } from "lucide-react";
+import { Plus, Tag, DollarSign, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,87 +7,48 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { TagInput } from "@/components/TagInput";
 import { PhotoCapture } from "@/components/PhotoCapture";
-import { CurrencyConversion } from "@/components/CurrencyConversion";
+import { TagInput } from "@/components/TagInput";
 import { VoiceInput } from "@/components/VoiceInput";
+import { CurrencySelector } from "@/components/CurrencySelector";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { HelpTooltip } from "@/components/HelpTooltip";
+import { SuccessAnimation } from "@/components/SuccessAnimation";
 import { Expense } from "@/types/Expense";
-import { getStoredBaseCurrency, convertCurrency } from "@/utils/currencyUtils";
-import { isRecurringExpense, getSuggestedCategory } from "@/utils/recurringUtils";
-import { useToast } from "@/hooks/use-toast";
+import { getStoredBaseCurrency, convertCurrency, formatCurrency } from "@/utils/currencyUtils";
+import { getRecurringExpenses } from "@/utils/recurringUtils";
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onAddExpense: (expense: Expense) => void;
-  existingExpenses?: Expense[];
+  existingExpenses: Expense[];
 }
 
 const PRESET_CATEGORIES = [
   "Food", "Coffee", "Hotel", "Flights", "Transportation", "Entertainment", "Other"
 ];
 
-export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpenses = [] }: AddExpenseSheetProps) => {
+export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpenses }: AddExpenseSheetProps) => {
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [showCustomCategory, setShowCustomCategory] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
-  const [photo, setPhoto] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [currency, setCurrency] = useState(getStoredBaseCurrency());
   const [originalAmount, setOriginalAmount] = useState("");
   const [originalCurrency, setOriginalCurrency] = useState("");
   const [showCurrencyConversion, setShowCurrencyConversion] = useState(false);
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-  const [merchantSuggestions, setMerchantSuggestions] = useState<string[]>([]);
+  const [hotelCheckIn, setHotelCheckIn] = useState<Date>();
+  const [hotelCheckOut, setHotelCheckOut] = useState<Date>();
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const baseCurrency = getStoredBaseCurrency();
-  const { toast } = useToast();
-
-  // Get merchant suggestions
-  useEffect(() => {
-    const uniqueMerchants = [...new Set(existingExpenses.map(e => e.merchant))];
-    setMerchantSuggestions(uniqueMerchants);
-  }, [existingExpenses]);
-
-  // Check for recurring expenses
-  useEffect(() => {
-    if (merchant.trim() && existingExpenses.length > 0) {
-      const recurring = isRecurringExpense(merchant, existingExpenses);
-      setIsRecurring(recurring);
-      
-      if (recurring) {
-        const suggestedCategory = getSuggestedCategory(merchant, existingExpenses);
-        if (suggestedCategory && !category) {
-          setCategory(suggestedCategory);
-        }
-      }
-    }
-  }, [merchant, existingExpenses, category]);
-
-  const simulateOCR = (filename: string) => {
-    const mockData = {
-      merchant: filename.includes('starbucks') ? 'Starbucks' : 
-                filename.includes('hotel') ? 'Hotel California' : 
-                'Sample Merchant',
-      amount: Math.floor(Math.random() * 100) + 10,
-      category: filename.includes('coffee') ? 'Coffee' : 
-                filename.includes('hotel') ? 'Hotel' : 'Food'
-    };
-    
-    setMerchant(mockData.merchant);
-    setAmount(mockData.amount.toString());
-    setCategory(mockData.category);
-  };
-
-  const handleVoiceResult = (result: { merchant: string; amount: string; category?: string }) => {
-    if (result.merchant) setMerchant(result.merchant);
-    if (result.amount) setAmount(result.amount);
-    if (result.category) setCategory(result.category);
-  };
 
   const handleCategoryChange = (value: string) => {
     if (value === "custom") {
@@ -101,28 +61,36 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     }
   };
 
+  const handlePhotoCapture = (photo: string | null) => {
+    setCapturedPhoto(photo);
+  };
+
+  const handleVoiceResult = (result: { merchant: string; amount: string; category?: string }) => {
+    setMerchant(result.merchant);
+    setAmount(result.amount);
+    if (result.category) {
+      setCategory(result.category);
+    }
+  };
+
+  const getSmartSuggestions = () => {
+    const recurringMerchants = getRecurringExpenses(existingExpenses).map(expense => expense.merchant);
+    const uniqueMerchants = [...new Set(recurringMerchants)];
+    return uniqueMerchants.filter(item =>
+      item.toLowerCase().includes(merchant.toLowerCase()) && item !== merchant
+    );
+  };
+
+  const getIsRecurring = (merchant: string, existingExpenses: Expense[]) => {
+    const recurringMerchants = getRecurringExpenses(existingExpenses).map(expense => expense.merchant);
+    return recurringMerchants.includes(merchant);
+  };
+
   const getConvertedAmount = () => {
     if (!showCurrencyConversion || !originalAmount || !originalCurrency) {
       return parseFloat(amount) || 0;
     }
     return convertCurrency(parseFloat(originalAmount), originalCurrency, baseCurrency);
-  };
-
-  const resetForm = () => {
-    setMerchant("");
-    setAmount("");
-    setCategory("");
-    setCustomCategory("");
-    setShowCustomCategory(false);
-    setDate(new Date().toISOString().split('T')[0]);
-    setNotes("");
-    setPhoto(null);
-    setTags([]);
-    setOriginalAmount("");
-    setOriginalCurrency("");
-    setShowCurrencyConversion(false);
-    setIsRecurring(false);
-    setShowSuccessAnimation(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -132,195 +100,287 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
       ? customCategory.trim() 
       : category;
 
-    if (!merchant || (!amount && !originalAmount) || !finalCategory) return;
+    if (!merchant || !amount || !finalCategory) return;
 
     const finalAmount = getConvertedAmount();
     const exchangeRate = showCurrencyConversion && originalAmount && originalCurrency
       ? finalAmount / parseFloat(originalAmount)
       : undefined;
 
-    const expense: Expense = {
+    // Add hotel dates to notes if it's a hotel expense
+    let finalNotes = notes;
+    if (finalCategory.toLowerCase() === 'hotel' && hotelCheckIn && hotelCheckOut) {
+      const checkInStr = hotelCheckIn.toLocaleDateString();
+      const checkOutStr = hotelCheckOut.toLocaleDateString();
+      finalNotes = `${notes ? notes + '\n' : ''}Stay: ${checkInStr} - ${checkOutStr}`;
+    }
+
+    const newExpense: Expense = {
       id: Date.now().toString(),
       merchant,
       amount: finalAmount,
       category: finalCategory,
-      date,
-      notes,
-      photo,
+      date: date || new Date().toISOString().split('T')[0],
+      notes: finalNotes,
+      photo: capturedPhoto,
       tags,
       currency: baseCurrency,
       originalAmount: showCurrencyConversion ? parseFloat(originalAmount) : undefined,
       originalCurrency: showCurrencyConversion ? originalCurrency : undefined,
       exchangeRate,
-      isRecurring
+      isRecurring: getIsRecurring(merchant, existingExpenses)
     };
 
-    onAddExpense(expense);
+    onAddExpense(newExpense);
     
     // Show success animation
-    setShowSuccessAnimation(true);
-    toast({
-      title: "Expense added!",
-      description: `${merchant} - ${finalAmount.toFixed(2)} ${baseCurrency}`,
-    });
+    setSuccessMessage('Expense saved successfully!');
+    setShowSuccess(true);
     
+    // Reset form after short delay
     setTimeout(() => {
       resetForm();
       onClose();
-    }, 1500);
+    }, 500);
   };
 
-  const filteredSuggestions = merchantSuggestions.filter(suggestion =>
-    suggestion.toLowerCase().includes(merchant.toLowerCase()) && 
-    suggestion !== merchant
-  ).slice(0, 5);
+  const resetForm = () => {
+    setMerchant("");
+    setAmount("");
+    setCategory("");
+    setCustomCategory("");
+    setShowCustomCategory(false);
+    setDate("");
+    setNotes("");
+    setTags([]);
+    setCapturedPhoto(null);
+    setCurrency(baseCurrency);
+    setOriginalAmount("");
+    setOriginalCurrency("");
+    setShowCurrencyConversion(false);
+    setHotelCheckIn(undefined);
+    setHotelCheckOut(undefined);
+  };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Add New Expense</SheetTitle>
-        </SheetHeader>
+    <>
+      <Sheet open={isOpen} onOpenChange={onClose}>
+        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto transition-all duration-300">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              Add New Expense
+              <HelpTooltip content="Take a photo or manually enter expense details. Use voice input for quick logging." />
+            </SheetTitle>
+          </SheetHeader>
 
-        {showSuccessAnimation && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-            <div className="bg-white rounded-lg p-6 flex flex-col items-center animate-scale-in">
-              <CheckCircle className="w-16 h-16 text-green-500 mb-2" />
-              <p className="text-lg font-semibold">Expense Added!</p>
+          <form onSubmit={handleSubmit} className="space-y-4 mt-6">
+            {/* Photo Capture */}
+            <div className="space-y-2">
+              <Label>Receipt Photo</Label>
+              {capturedPhoto ? (
+                <img src={capturedPhoto} alt="Receipt" className="w-full h-32 object-cover rounded-lg" />
+              ) : (
+                <PhotoCapture onCapture={handlePhotoCapture} />
+              )}
             </div>
-          </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-          <PhotoCapture 
-            photo={photo}
-            onPhotoChange={setPhoto}
-            onPhotoCapture={simulateOCR}
-          />
-
-          {/* Voice Input and Merchant */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            {/* Merchant with voice input */}
+            <div className="space-y-2">
               <Label htmlFor="merchant">Merchant *</Label>
-              <VoiceInput onVoiceResult={handleVoiceResult} />
-            </div>
-            <div className="relative">
-              <Input
-                id="merchant"
-                value={merchant}
-                onChange={(e) => setMerchant(e.target.value)}
-                placeholder="Where did you shop?"
-                required
-              />
-              {/* Merchant suggestions */}
-              {merchant && filteredSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                  {filteredSuggestions.map((suggestion) => (
-                    <button
+              <div className="flex gap-2">
+                <Input
+                  id="merchant"
+                  value={merchant}
+                  onChange={(e) => setMerchant(e.target.value)}
+                  placeholder="Where did you shop?"
+                  required
+                  className="flex-1 transition-all duration-200 focus:scale-[1.02]"
+                />
+                <VoiceInput onVoiceResult={handleVoiceResult} />
+              </div>
+              {/* Smart suggestions */}
+              {merchant && (
+                <div className="flex flex-wrap gap-1">
+                  {getSmartSuggestions().map((suggestion) => (
+                    <Button
                       key={suggestion}
                       type="button"
-                      className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
+                      variant="outline"
+                      size="sm"
                       onClick={() => setMerchant(suggestion)}
+                      className="text-xs transition-all duration-200 hover:scale-105"
                     >
                       {suggestion}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
             </div>
-            {isRecurring && (
-              <Badge className="bg-blue-100 text-blue-800">
-                <Tag className="w-3 h-3 mr-1" />
-                Recurring
-              </Badge>
-            )}
-          </div>
 
-          <CurrencyConversion
-            showCurrencyConversion={showCurrencyConversion}
-            onToggle={() => setShowCurrencyConversion(!showCurrencyConversion)}
-            amount={amount}
-            onAmountChange={setAmount}
-            originalAmount={originalAmount}
-            onOriginalAmountChange={setOriginalAmount}
-            originalCurrency={originalCurrency}
-            onOriginalCurrencyChange={setOriginalCurrency}
-            convertedAmount={getConvertedAmount()}
-            baseCurrency={baseCurrency}
-          />
-
-          {/* Category */}
-          <div className="space-y-2">
-            <Label>Category *</Label>
-            <Select onValueChange={handleCategoryChange} value={showCustomCategory ? "custom" : category}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {PRESET_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-                <SelectItem value="custom">
-                  <div className="flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    Add Custom Category
+            {/* Currency Conversion */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Amount *</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCurrencyConversion(!showCurrencyConversion)}
+                >
+                  <DollarSign className="w-4 h-4 mr-1" />
+                  {showCurrencyConversion ? 'Hide' : 'Convert'} Currency
+                </Button>
+              </div>
+              
+              {showCurrencyConversion ? (
+                <div className="space-y-3 p-3 border rounded-lg bg-gray-50">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="originalAmount">Original Amount</Label>
+                      <Input
+                        id="originalAmount"
+                        type="number"
+                        step="0.01"
+                        value={originalAmount}
+                        onChange={(e) => setOriginalAmount(e.target.value)}
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Original Currency</Label>
+                      <CurrencySelector
+                        value={originalCurrency}
+                        onValueChange={setOriginalCurrency}
+                        placeholder="Currency"
+                      />
+                    </div>
                   </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+                  {originalAmount && originalCurrency && (
+                    <div className="text-sm text-gray-600">
+                      = {formatCurrency(getConvertedAmount(), baseCurrency)} (converted to {baseCurrency})
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  required
+                />
+              )}
+            </div>
 
-            {showCustomCategory && (
-              <Input
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="Enter custom category"
-                required
-              />
+            {/* Category */}
+            <div className="space-y-2">
+              <Label>Category *</Label>
+              <Select onValueChange={handleCategoryChange} value={showCustomCategory ? "custom" : category}>
+                <SelectTrigger className="transition-all duration-200 focus:scale-[1.02]">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRESET_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">
+                    <div className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      Add Custom Category
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              {showCustomCategory && (
+                <Input
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder="Enter custom category"
+                  required
+                  className="animate-fade-in transition-all duration-200 focus:scale-[1.02]"
+                />
+              )}
+            </div>
+
+            {/* Hotel Date Selection */}
+            {(category === 'Hotel' || customCategory.toLowerCase().includes('hotel')) && (
+              <div className="space-y-2 animate-fade-in">
+                <Label className="flex items-center gap-2">
+                  Hotel Stay Dates
+                  <HelpTooltip content="Select your check-in and check-out dates for hotel stays" />
+                </Label>
+                <DateRangePicker
+                  checkIn={hotelCheckIn}
+                  checkOut={hotelCheckOut}
+                  onDatesChange={(checkIn, checkOut) => {
+                    setHotelCheckIn(checkIn);
+                    setHotelCheckOut(checkOut);
+                  }}
+                />
+              </div>
             )}
-          </div>
 
-          {/* Date */}
-          <div className="space-y-2">
-            <Label htmlFor="date">Date</Label>
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
+            {/* Date */}
+            <div className="space-y-2">
+              <Label htmlFor="date">Date</Label>
+              <Input
+                id="date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
 
-          {/* Tags */}
-          <div className="space-y-2">
-            <Label>Tags</Label>
-            <TagInput tags={tags} onTagsChange={setTags} />
-          </div>
+            {/* Tags */}
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <TagInput tags={tags} onTagsChange={setTags} />
+            </div>
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Additional details..."
-              rows={3}
-            />
-          </div>
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Additional details..."
+                rows={3}
+              />
+            </div>
 
-          {/* Submit Buttons */}
-          <div className="flex gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
-              Add Expense
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+            {/* Submit Buttons */}
+            <div className="flex gap-2 pt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onClose} 
+                className="flex-1 transition-all duration-200 hover:scale-[1.02]"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                className="flex-1 bg-blue-600 hover:bg-blue-700 transition-all duration-200 hover:scale-[1.02]"
+              >
+                Add Expense
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      <SuccessAnimation
+        show={showSuccess}
+        message={successMessage}
+        onComplete={() => setShowSuccess(false)}
+      />
+    </>
   );
 };

@@ -1,5 +1,5 @@
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface SpendingChartProps {
   categoryTotals: { [key: string]: number };
@@ -39,42 +39,47 @@ export const SpendingChart = ({ categoryTotals }: SpendingChartProps) => {
   };
 
   return (
-    <div className="w-full h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={dataWithPercentage}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={({ name, percentage }) => `${name}: ${percentage}%`}
-            outerRadius={80}
-            fill="#8884d8"
-            dataKey="value"
-          >
-            {dataWithPercentage.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} />
-        </PieChart>
-      </ResponsiveContainer>
+    <div className="w-full space-y-4">
+      {/* Chart Container - Fixed height and responsive */}
+      <div className="w-full h-64 overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={dataWithPercentage}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              outerRadius={80}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {dataWithPercentage.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
       
-      <div className="mt-4 space-y-2">
-        {dataWithPercentage.map((item, index) => (
-          <div key={item.name} className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
-              <div 
-                className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: COLORS[index % COLORS.length] }}
-              />
-              <span>{item.name}</span>
+      {/* Legend - Properly contained */}
+      <div className="w-full overflow-x-auto">
+        <div className="space-y-2 min-w-full">
+          {dataWithPercentage.map((item, index) => (
+            <div key={item.name} className="flex items-center justify-between text-sm px-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div 
+                  className="w-3 h-3 rounded-full flex-shrink-0" 
+                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                />
+                <span className="truncate">{item.name}</span>
+              </div>
+              <div className="font-medium text-right flex-shrink-0 ml-2">
+                ${item.value.toFixed(2)} ({item.percentage}%)
+              </div>
             </div>
-            <div className="font-medium">
-              ${item.value.toFixed(2)} ({item.percentage}%)
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

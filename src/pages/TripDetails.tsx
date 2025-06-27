@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Camera, Plus, FileText, Download, ArrowLeft, Edit2, Check, BarChart3, Map as MapIcon, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useParams, useNavigate } from "react-router-dom";
 import { Trip } from "@/types/Trip";
 import { Expense } from "@/types/Expense";
+import { HelpTooltip } from "@/components/HelpTooltip";
 
 const TripDetails = () => {
   const { tripId } = useParams<{ tripId: string }>();
@@ -142,34 +142,34 @@ const TripDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 transition-all duration-300">
       <div className="max-w-md mx-auto bg-white min-h-screen">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 transition-all duration-300">
           <div className="flex items-center gap-3 mb-3">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate('/')}
-              className="text-white hover:bg-white/20 p-1"
+              className="text-white hover:bg-white/20 p-1 transition-all duration-200 hover:scale-110"
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
             
             <div className="flex-1">
               {isEditingName ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 animate-fade-in">
                   <Input
                     value={tempTripName}
                     onChange={(e) => setTempTripName(e.target.value)}
-                    className="bg-white/20 border-white/30 text-white placeholder:text-white/70 text-lg font-semibold"
+                    className="bg-white/20 border-white/30 text-white placeholder:text-white/70 text-lg font-semibold transition-all duration-200"
                     onKeyPress={(e) => e.key === 'Enter' && handleTripNameSave()}
                   />
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleTripNameSave}
-                    className="text-white hover:bg-white/20 p-1"
+                    className="text-white hover:bg-white/20 p-1 transition-all duration-200 hover:scale-110"
                   >
                     <Check className="w-4 h-4" />
                   </Button>
@@ -181,15 +181,16 @@ const TripDetails = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsEditingName(true)}
-                    className="text-white hover:bg-white/20 p-1"
+                    className="text-white hover:bg-white/20 p-1 transition-all duration-200 hover:scale-110"
                   >
                     <Edit2 className="w-3 h-3" />
                   </Button>
+                  <HelpTooltip content="Click to edit trip name" side="bottom" />
                 </div>
               )}
             </div>
             
-            <Badge className={trip.status === 'active' ? 'bg-green-500' : 'bg-gray-500'}>
+            <Badge className={trip.status === 'active' ? 'bg-green-500 transition-all duration-200' : 'bg-gray-500 transition-all duration-200'}>
               {trip.status === 'active' ? 'Active' : 'Completed'}
             </Badge>
           </div>
@@ -205,15 +206,20 @@ const TripDetails = () => {
         <div className="p-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="expenses">Expenses</TabsTrigger>
-              <TabsTrigger value="chart">Analytics</TabsTrigger>
-              <TabsTrigger value="map">Map</TabsTrigger>
+              <TabsTrigger value="expenses" className="transition-all duration-200">
+                <span className="flex items-center gap-1">
+                  Expenses
+                  <HelpTooltip content="View and manage all trip expenses" />
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="chart" className="transition-all duration-200">Analytics</TabsTrigger>
+              <TabsTrigger value="map" className="transition-all duration-200">Map</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="expenses" className="space-y-4 mt-4">
+            <TabsContent value="expenses" className="space-y-4 mt-4 animate-fade-in">
               {/* Quick Stats */}
               <div className="grid grid-cols-2 gap-4">
-                <Card>
+                <Card className="transition-all duration-200 hover:shadow-md hover:scale-[1.02]">
                   <CardContent className="p-4 text-center">
                     <div className="text-2xl font-bold text-blue-600">
                       ${getTotalAmount().toFixed(2)}
@@ -221,7 +227,7 @@ const TripDetails = () => {
                     <div className="text-sm text-gray-600">Total Spent</div>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="transition-all duration-200 hover:shadow-md hover:scale-[1.02]">
                   <CardContent className="p-4 text-center">
                     <div className="text-2xl font-bold text-green-600">
                       {filteredExpenses.length}
@@ -242,15 +248,17 @@ const TripDetails = () => {
                 <div className="flex gap-2">
                   <Button 
                     onClick={() => setIsAddExpenseOpen(true)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 transition-all duration-200 hover:scale-[1.02]"
                   >
                     <Camera className="w-4 h-4 mr-2" />
                     Add Receipt
+                    <HelpTooltip content="Take a photo or manually add an expense" />
                   </Button>
                   <Button 
                     variant="outline" 
                     onClick={() => setIsExportOpen(true)}
                     disabled={expenses.length === 0}
+                    className="transition-all duration-200 hover:scale-110"
                   >
                     <Download className="w-4 h-4" />
                   </Button>
@@ -289,11 +297,13 @@ const TripDetails = () => {
               </div>
 
               {/* Expense List */}
-              <ExpenseList 
-                expenses={filteredExpenses}
-                onDelete={deleteExpense}
-                onUpdate={updateExpense}
-              />
+              <div className="animate-fade-in">
+                <ExpenseList 
+                  expenses={filteredExpenses}
+                  onDelete={deleteExpense}
+                  onUpdate={updateExpense}
+                />
+              </div>
 
               {filteredExpenses.length === 0 && expenses.length > 0 && (
                 <div className="text-center py-8">
@@ -322,29 +332,34 @@ const TripDetails = () => {
               )}
             </TabsContent>
 
-            <TabsContent value="chart" className="mt-4">
+            <TabsContent value="chart" className="mt-4 animate-fade-in">
               {expenses.length > 0 ? (
-                <Card>
+                <Card className="transition-all duration-300 hover:shadow-md">
                   <CardHeader>
-                    <CardTitle className="text-lg">Spending Breakdown</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      Spending Breakdown
+                      <HelpTooltip content="Visual breakdown of your expenses by category" />
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <SpendingChart categoryTotals={getCategoryTotals()} />
                   </CardContent>
                 </Card>
               ) : (
-                <div className="text-center py-12">
+                <div className="text-center py-12 animate-fade-in">
                   <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">Add expenses to see analytics</p>
                 </div>
               )}
             </TabsContent>
 
-            <TabsContent value="map" className="mt-4">
+            <TabsContent value="map" className="mt-4 animate-fade-in">
               {expenses.length > 0 ? (
-                <MapView expenses={filteredExpenses} />
+                <div className="transition-all duration-300">
+                  <MapView expenses={filteredExpenses} />
+                </div>
               ) : (
-                <div className="text-center py-12">
+                <div className="text-center py-12 animate-fade-in">
                   <MapIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">Add expenses to see locations on map</p>
                 </div>
