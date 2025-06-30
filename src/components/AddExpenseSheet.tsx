@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Plus, Tag, DollarSign, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -71,6 +70,30 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     setAmount(result.amount);
     if (result.category) {
       setCategory(result.category);
+    }
+  };
+
+  const handleInvoiceParsed = (parsedData: any) => {
+    console.log('Invoice parsed:', parsedData);
+    
+    // Auto-fill form fields with parsed data
+    if (parsedData.total) {
+      setAmount(parsedData.total.toString());
+    }
+    
+    if (parsedData.category) {
+      // Check if it's a preset category
+      if (PRESET_CATEGORIES.includes(parsedData.category)) {
+        setCategory(parsedData.category);
+        setShowCustomCategory(false);
+      } else {
+        setCustomCategory(parsedData.category);
+        setShowCustomCategory(true);
+      }
+    }
+    
+    if (parsedData.date) {
+      setDate(parsedData.date);
     }
   };
 
@@ -170,7 +193,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               Add New Expense
-              <HelpTooltip content="Take a photo or manually enter expense details. Use voice input for quick logging." />
+              <HelpTooltip content="Take a photo of your receipt and we'll automatically extract the total, category, and date for you!" />
             </SheetTitle>
           </SheetHeader>
 
@@ -181,7 +204,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
               {capturedPhoto ? (
                 <img src={capturedPhoto} alt="Receipt" className="w-full h-32 object-cover rounded-lg" />
               ) : (
-                <PhotoCapture onCapture={handlePhotoCapture} />
+                <PhotoCapture onCapture={handlePhotoCapture} onInvoiceParsed={handleInvoiceParsed} />
               )}
             </div>
 
