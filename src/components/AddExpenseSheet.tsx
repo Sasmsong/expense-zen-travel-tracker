@@ -17,6 +17,7 @@ import { SuccessAnimation } from "@/components/SuccessAnimation";
 import { Expense } from "@/types/Expense";
 import { getStoredBaseCurrency, convertCurrency, formatCurrency } from "@/utils/currencyUtils";
 import { getRecurringExpenses } from "@/utils/recurringUtils";
+import { InputValidator } from "@/utils/security";
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -76,24 +77,27 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
   const handleInvoiceParsed = (parsedData: any) => {
     console.log('Invoice parsed:', parsedData);
     
-    // Auto-fill form fields with parsed data
+    // Security: Validate and sanitize parsed data
     if (parsedData.total) {
-      setAmount(parsedData.total.toString());
+      const validatedAmount = InputValidator.validateAmount(parsedData.total);
+      setAmount(validatedAmount.toString());
     }
     
     if (parsedData.category) {
+      const validatedCategory = InputValidator.validateCategory(parsedData.category);
       // Check if it's a preset category
-      if (PRESET_CATEGORIES.includes(parsedData.category)) {
-        setCategory(parsedData.category);
+      if (PRESET_CATEGORIES.includes(validatedCategory)) {
+        setCategory(validatedCategory);
         setShowCustomCategory(false);
       } else {
-        setCustomCategory(parsedData.category);
+        setCustomCategory(validatedCategory);
         setShowCustomCategory(true);
       }
     }
     
     if (parsedData.date) {
-      setDate(parsedData.date);
+      const validatedDate = InputValidator.validateDate(parsedData.date);
+      setDate(validatedDate);
     }
   };
 
@@ -120,39 +124,53 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const finalCategory = showCustomCategory && customCategory.trim() 
-      ? customCategory.trim() 
-      : category;
+    // Security: Validate and sanitize all inputs
+    const validatedMerchant = InputValidator.validateMerchant(merchant);
+    const validatedAmount = InputValidator.validateAmount(amount);
+    const validatedCategory = showCustomCategory && customCategory.trim() 
+      ? InputValidator.validateCategory(customCategory.trim())
+      : InputValidator.validateCategory(category);
+    const validatedDate = InputValidator.validateDate(date || new Date().toISOString().split('T')[0]);
+    const validatedNotes = InputValidator.sanitizeText(notes);
+    const validatedTags = InputValidator.validateTags(tags);
 
-    if (!merchant || !amount || !finalCategory) return;
+    if (!validatedMerchant || validatedAmount <= 0 || !validatedCategory) {
+      return;
+    }
 
     const finalAmount = getConvertedAmount();
-    const exchangeRate = showCurrencyConversion && originalAmount && originalCurrency
-      ? finalAmount / parseFloat(originalAmount)
+    const validatedOriginalAmount = showCurrencyConversion && originalAmount 
+      ? InputValidator.validateAmount(originalAmount)
+      : undefined;
+    const validatedOriginalCurrency = showCurrencyConversion && originalCurrency
+      ? InputValidator.validateCurrency(originalCurrency)
+      : undefined;
+    const exchangeRate = showCurrencyConversion && validatedOriginalAmount && validatedOriginalCurrency
+      ? finalAmount / validatedOriginalAmount
       : undefined;
 
     // Add hotel dates to notes if it's a hotel expense
-    let finalNotes = notes;
-    if (finalCategory.toLowerCase() === 'hotel' && hotelCheckIn && hotelCheckOut) {
+    let finalNotes = validatedNotes;
+    if (validatedCategory.toLowerCase() === 'hotel' && hotelCheckIn && hotelCheckOut) {
       const checkInStr = hotelCheckIn.toLocaleDateString();
       const checkOutStr = hotelCheckOut.toLocaleDateString();
-      finalNotes = `${notes ? notes + '\n' : ''}Stay: ${checkInStr} - ${checkOutStr}`;
+      finalNotes = `${validatedNotes ? validatedNotes + '\n' : ''}Stay: ${checkInStr} - ${checkOutStr}`;
     }
 
     const newExpense: Expense = {
       id: Date.now().toString(),
-      merchant,
+      merchant: validatedMerchant,
       amount: finalAmount,
-      category: finalCategory,
-      date: date || new Date().toISOString().split('T')[0],
+      category: validatedCategory,
+      date: validatedDate,
       notes: finalNotes,
       photo: capturedPhoto,
-      tags,
+      tags: validatedTags,
       currency: baseCurrency,
-      originalAmount: showCurrencyConversion ? parseFloat(originalAmount) : undefined,
-      originalCurrency: showCurrencyConversion ? originalCurrency : undefined,
+      originalAmount: validatedOriginalAmount,
+      originalCurrency: validatedOriginalCurrency,
       exchangeRate,
-      isRecurring: getIsRecurring(merchant, existingExpenses)
+      isRecurring: getIsRecurring(validatedMerchant, existingExpenses)
     };
 
     onAddExpense(newExpense);

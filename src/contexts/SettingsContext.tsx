@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { SecureExpenseStorage } from '@/utils/secureStorage';
 
 interface SettingsContextType {
   theme: 'light' | 'dark';
@@ -27,20 +28,34 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
   const [cloudBackupEnabled, setCloudBackupEnabled] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('app-settings');
-    if (saved) {
-      const settings = JSON.parse(saved);
-      setTheme(settings.theme || 'light');
-      setAccentColor(settings.accentColor || '#3B82F6');
-      setBaseCurrency(settings.baseCurrency || 'USD');
-      setReminderEnabled(settings.reminderEnabled || false);
-      setReminderTime(settings.reminderTime || '18:00');
-      setCloudBackupEnabled(settings.cloudBackupEnabled || false);
-    }
+    const loadSettings = async () => {
+      try {
+        const settings = await SecureExpenseStorage.getSettings();
+        if (settings) {
+          setTheme(settings.theme || 'light');
+          setAccentColor(settings.accentColor || '#3B82F6');
+          setBaseCurrency(settings.baseCurrency || 'USD');
+          setReminderEnabled(settings.reminderEnabled || false);
+          setReminderTime(settings.reminderTime || '18:00');
+          setCloudBackupEnabled(settings.cloudBackupEnabled || false);
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+
+    loadSettings();
+    SecureExpenseStorage.migrateToSecureStorage();
   }, []);
 
-  const saveSettings = (newSettings: any) => {
-    localStorage.setItem('app-settings', JSON.stringify(newSettings));
+  const saveSettings = async (newSettings: any) => {
+    try {
+      await SecureExpenseStorage.saveSettings(newSettings);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      // Fallback to localStorage
+      localStorage.setItem('app-settings', JSON.stringify(newSettings));
+    }
   };
 
   const handleSetTheme = (newTheme: 'light' | 'dark') => {
