@@ -12,6 +12,7 @@ import { TagInput } from "@/components/TagInput";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { Expense } from "@/types/Expense";
 import { getStoredBaseCurrency, convertCurrency, formatCurrency } from "@/utils/currencyUtils";
+import { InputValidator } from "@/utils/security";
 
 interface EditExpenseSheetProps {
   expense: Expense;
@@ -91,28 +92,40 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const finalCategory = showCustomCategory && customCategory.trim() 
-      ? customCategory.trim() 
-      : category;
+    // Validate and sanitize
+    const validatedMerchant = InputValidator.validateMerchant(merchant);
+    const validatedAmount = InputValidator.validateAmount(amount);
+    const validatedCategory = showCustomCategory && customCategory.trim() 
+      ? InputValidator.validateCategory(customCategory.trim())
+      : InputValidator.validateCategory(category);
+    const validatedDate = InputValidator.validateDate(date || new Date().toISOString().split('T')[0]);
+    const validatedNotes = InputValidator.sanitizeText(notes);
+    const validatedTags = (tags || []).map(t => InputValidator.sanitizeText(t)).filter(Boolean);
 
-    if (!merchant || !amount || !finalCategory) return;
+    if (!validatedMerchant || validatedAmount <= 0 || !validatedCategory) return;
 
     const finalAmount = getConvertedAmount();
-    const exchangeRate = showCurrencyConversion && originalAmount && originalCurrency
-      ? finalAmount / parseFloat(originalAmount)
+    const validatedOriginalAmount = showCurrencyConversion && originalAmount 
+      ? InputValidator.validateAmount(originalAmount)
+      : undefined;
+    const validatedOriginalCurrency = showCurrencyConversion && originalCurrency
+      ? InputValidator.validateCurrency(originalCurrency)
+      : undefined;
+    const exchangeRate = showCurrencyConversion && validatedOriginalAmount && validatedOriginalCurrency
+      ? finalAmount / validatedOriginalAmount
       : expense.exchangeRate;
 
     const updatedExpense: Expense = {
       ...expense,
-      merchant,
+      merchant: validatedMerchant,
       amount: finalAmount,
-      category: finalCategory,
-      date,
-      notes,
-      tags,
+      category: validatedCategory,
+      date: validatedDate,
+      notes: validatedNotes,
+      tags: validatedTags,
       currency: baseCurrency,
-      originalAmount: showCurrencyConversion ? parseFloat(originalAmount) : undefined,
-      originalCurrency: showCurrencyConversion ? originalCurrency : undefined,
+      originalAmount: validatedOriginalAmount,
+      originalCurrency: validatedOriginalCurrency,
       exchangeRate
     };
 

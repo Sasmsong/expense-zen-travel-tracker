@@ -35,41 +35,37 @@ const TripDetails = () => {
   useEffect(() => {
     if (!tripId) return;
 
-    // Load trip data
-    const savedTrips = localStorage.getItem('trips');
-    if (savedTrips) {
-      const trips = JSON.parse(savedTrips) as Trip[];
-      const currentTrip = trips.find(t => t.id === tripId);
+    const load = async () => {
+      // Load trips and find current
+      const trips = await (await import('@/utils/secureStorage')).SecureExpenseStorage.getTrips();
+      const currentTrip = (trips as Trip[]).find(t => t.id === tripId);
       if (currentTrip) {
         setTrip(currentTrip);
         setTempTripName(currentTrip.name);
       }
-    }
 
-    // Load expenses for this trip
-    const savedExpenses = localStorage.getItem(`trip-${tripId}-expenses`);
-    if (savedExpenses) {
-      const loadedExpenses = JSON.parse(savedExpenses);
-      setExpenses(loadedExpenses);
-      setFilteredExpenses(loadedExpenses);
-    }
+      // Load expenses for this trip
+      const loadedExpenses = await (await import('@/utils/secureStorage')).SecureExpenseStorage.getTripExpenses(tripId);
+      setExpenses(loadedExpenses as Expense[]);
+      setFilteredExpenses(loadedExpenses as Expense[]);
+    };
+
+    load();
   }, [tripId]);
 
   const location = useLocation();
   const canonicalUrl = `${window.location.origin}${location.pathname}`;
 
-  const saveTrip = (updatedTrip: Trip) => {
-    const savedTrips = localStorage.getItem('trips');
-    if (savedTrips) {
-      const trips = JSON.parse(savedTrips) as Trip[];
-      const updatedTrips = trips.map(t => t.id === tripId ? updatedTrip : t);
-      localStorage.setItem('trips', JSON.stringify(updatedTrips));
-      setTrip(updatedTrip);
-    }
+  const saveTrip = async (updatedTrip: Trip) => {
+    const trips = await (await import('@/utils/secureStorage')).SecureExpenseStorage.getTrips();
+    const updatedTrips = (trips as Trip[]).map(t => t.id === tripId ? updatedTrip : t);
+    await (await import('@/utils/secureStorage')).SecureExpenseStorage.saveTrips(updatedTrips);
+    setTrip(updatedTrip);
   };
 
-  const saveExpenses = (newExpenses: Expense[]) => {
-    localStorage.setItem(`trip-${tripId}-expenses`, JSON.stringify(newExpenses));
+  const saveExpenses = async (newExpenses: Expense[]) => {
+    if (!tripId) return;
+    await (await import('@/utils/secureStorage')).SecureExpenseStorage.saveTripExpenses(tripId, newExpenses);
     setExpenses(newExpenses);
     setFilteredExpenses(newExpenses);
   };

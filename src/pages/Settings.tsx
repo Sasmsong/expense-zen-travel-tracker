@@ -52,8 +52,8 @@ const Settings = () => {
     });
   };
 
-  const handleExportData = () => {
-    const trips = JSON.parse(localStorage.getItem('trips') || '[]');
+  const handleExportData = async () => {
+    const trips = await (await import('@/utils/secureStorage')).SecureExpenseStorage.getTrips();
     const dataStr = JSON.stringify({ trips, settings: { theme, accentColor, baseCurrency } }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);

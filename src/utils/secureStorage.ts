@@ -41,11 +41,15 @@ export class SecureExpenseStorage {
   static async getTrips(): Promise<any[]> {
     try {
       const data = await SecureStorage.getItem(this.STORAGE_KEYS.trips);
-      return data ? JSON.parse(data) : [];
+      if (data) return JSON.parse(data);
+
+      // Legacy fallback: unencrypted 'trips'
+      const legacy = localStorage.getItem('trips');
+      return legacy ? JSON.parse(legacy) : [];
     } catch (error) {
       console.error('Failed to load trips:', error);
-      // Fallback to regular localStorage
-      const fallback = localStorage.getItem(this.STORAGE_KEYS.trips);
+      // Fallback to regular localStorage (including legacy key)
+      const fallback = localStorage.getItem(this.STORAGE_KEYS.trips) || localStorage.getItem('trips');
       return fallback ? JSON.parse(fallback) : [];
     }
   }
@@ -89,6 +93,48 @@ export class SecureExpenseStorage {
     }
   }
 
+  // Per-trip secure expense storage
+  static async saveTripExpenses(tripId: string, expenses: any[]): Promise<void> {
+    try {
+      const validatedExpenses = expenses.map(expense => ({
+        ...expense,
+        merchant: InputValidator.validateMerchant(expense.merchant || ''),
+        amount: InputValidator.validateAmount(expense.amount || 0),
+        category: InputValidator.validateCategory(expense.category || ''),
+        date: InputValidator.validateDate(expense.date),
+        notes: InputValidator.sanitizeText(expense.notes || ''),
+        tags: InputValidator.validateTags(expense.tags || []),
+        originalAmount: expense.originalAmount ? InputValidator.validateAmount(expense.originalAmount) : undefined,
+        originalCurrency: expense.originalCurrency ? InputValidator.validateCurrency(expense.originalCurrency) : undefined
+      }));
+
+      await SecureStorage.setItem(
+        `trip-expenses-${tripId}`,
+        JSON.stringify(validatedExpenses)
+      );
+    } catch (error) {
+      console.error('Failed to save trip expenses:', error);
+      // Fallback to legacy localStorage key
+      localStorage.setItem(`trip-${tripId}-expenses`, JSON.stringify(expenses));
+    }
+  }
+
+  static async getTripExpenses(tripId: string): Promise<any[]> {
+    try {
+      const data = await SecureStorage.getItem(`trip-expenses-${tripId}`);
+      if (data) return JSON.parse(data);
+
+      // Legacy fallback
+      const legacy = localStorage.getItem(`trip-${tripId}-expenses`);
+      return legacy ? JSON.parse(legacy) : [];
+    } catch (error) {
+      console.error('Failed to load trip expenses:', error);
+      // Fallback to legacy
+      const fallback = localStorage.getItem(`trip-${tripId}-expenses`);
+      return fallback ? JSON.parse(fallback) : [];
+    }
+  }
+
   // Secure settings storage
   static async saveSettings(settings: any): Promise<void> {
     try {
@@ -128,32 +174,54 @@ export class SecureExpenseStorage {
   // Clean up old/insecure data
   static async migrateToSecureStorage(): Promise<void> {
     console.log('Migrating to secure storage...');
-    
-    // Migrate existing data to secure storage
-    const existingTrips = localStorage.getItem(this.STORAGE_KEYS.trips);
-    if (existingTrips) {
+
+    // 1) Migrate encrypted keys if present (idempotent)
+    const existingEncryptedTrips = localStorage.getItem(this.STORAGE_KEYS.trips);
+    if (existingEncryptedTrips) {
       try {
-        await this.saveTrips(JSON.parse(existingTrips));
+        await this.saveTrips(JSON.parse(existingEncryptedTrips));
       } catch (error) {
-        console.error('Failed to migrate trips:', error);
+        console.error('Failed to migrate encrypted trips:', error);
       }
     }
 
-    const existingExpenses = localStorage.getItem(this.STORAGE_KEYS.expenses);
-    if (existingExpenses) {
+    const existingEncryptedExpenses = localStorage.getItem(this.STORAGE_KEYS.expenses);
+    if (existingEncryptedExpenses) {
       try {
-        await this.saveExpenses(JSON.parse(existingExpenses));
+        await this.saveExpenses(JSON.parse(existingEncryptedExpenses));
       } catch (error) {
-        console.error('Failed to migrate expenses:', error);
+        console.error('Failed to migrate encrypted expenses:', error);
       }
     }
 
-    const existingSettings = localStorage.getItem(this.STORAGE_KEYS.settings);
-    if (existingSettings) {
+    const existingEncryptedSettings = localStorage.getItem(this.STORAGE_KEYS.settings);
+    if (existingEncryptedSettings) {
       try {
-        await this.saveSettings(JSON.parse(existingSettings));
+        await this.saveSettings(JSON.parse(existingEncryptedSettings));
       } catch (error) {
-        console.error('Failed to migrate settings:', error);
+        console.error('Failed to migrate encrypted settings:', error);
+      }
+    }
+
+    // 2) Migrate legacy plaintext keys: 'trips' and per-trip 'trip-{id}-expenses'
+    const legacyTrips = localStorage.getItem('trips');
+    if (legacyTrips) {
+      try {
+        const trips = JSON.parse(legacyTrips);
+        await this.saveTrips(trips);
+        // Migrate per-trip expenses
+        for (const trip of trips) {
+          try {
+            const legacyTripExpenses = localStorage.getItem(`trip-${trip.id}-expenses`);
+            if (legacyTripExpenses) {
+              await this.saveTripExpenses(trip.id, JSON.parse(legacyTripExpenses));
+            }
+          } catch (err) {
+            console.error(`Failed to migrate expenses for trip ${trip.id}:`, err);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to migrate legacy trips:', error);
       }
     }
   }

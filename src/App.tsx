@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,6 +16,20 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
+const MigrationGate = () => {
+  useEffect(() => {
+    (async () => {
+      try {
+        const { SecureExpenseStorage } = await import('@/utils/secureStorage');
+        await SecureExpenseStorage.migrateToSecureStorage();
+      } catch (e) {
+        console.warn('Secure storage migration skipped:', e);
+      }
+    })();
+  }, []);
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <SettingsProvider>
@@ -23,6 +37,7 @@ const App = () => (
         <HelmetProvider>
           <Toaster />
           <Sonner />
+          <MigrationGate />
           <BrowserRouter>
             <ErrorBoundary>
               <Suspense fallback={<div className="p-6 text-center">Loading...</div>}>

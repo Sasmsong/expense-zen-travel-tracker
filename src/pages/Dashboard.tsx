@@ -16,30 +16,26 @@ const Dashboard = () => {
   const [allExpenses, setAllExpenses] = useState<{ [tripId: string]: Expense[] }>({});
 
   useEffect(() => {
-    // Load trips
-    const savedTrips = localStorage.getItem('trips');
-    if (savedTrips) {
-      setTrips(JSON.parse(savedTrips));
-    }
+    const load = async () => {
+      // Load trips from secure storage (with legacy fallback)
+      const tripsData = await (await import('@/utils/secureStorage')).SecureExpenseStorage.getTrips();
+      setTrips(tripsData);
 
-    // Load all expenses
-    const expenseData: { [tripId: string]: Expense[] } = {};
-    const tripsData = savedTrips ? JSON.parse(savedTrips) : [];
-    
-    tripsData.forEach((trip: Trip) => {
-      const tripExpenses = localStorage.getItem(`trip-${trip.id}-expenses`);
-      if (tripExpenses) {
-        expenseData[trip.id] = JSON.parse(tripExpenses);
+      // Load all expenses per trip
+      const expenseData: { [tripId: string]: Expense[] } = {};
+      for (const trip of tripsData as Trip[]) {
+        const tripExpenses = await (await import('@/utils/secureStorage')).SecureExpenseStorage.getTripExpenses(trip.id);
+        expenseData[trip.id] = tripExpenses as Expense[];
       }
-    });
-    
-    setAllExpenses(expenseData);
+      setAllExpenses(expenseData);
+    };
+    load();
   }, []);
 
   const location = useLocation();
   const canonicalUrl = `${window.location.origin}${location.pathname}`;
 
-  const createNewTrip = () => {
+  const createNewTrip = async () => {
     const newTrip: Trip = {
       id: Date.now().toString(),
       name: `Trip ${trips.length + 1}`,
@@ -52,7 +48,7 @@ const Dashboard = () => {
 
     const updatedTrips = [...trips, newTrip];
     setTrips(updatedTrips);
-    localStorage.setItem('trips', JSON.stringify(updatedTrips));
+    await (await import('@/utils/secureStorage')).SecureExpenseStorage.saveTrips(updatedTrips);
     navigate(`/trip/${newTrip.id}`);
   };
 

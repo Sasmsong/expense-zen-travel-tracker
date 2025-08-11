@@ -16,6 +16,14 @@ interface ExportOptionsProps {
 export const ExportOptions = ({ isOpen, onClose, expenses, categoryTotals, tripName }: ExportOptionsProps) => {
   const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
+  const safeCSVField = (val: string) => {
+    const v = (val ?? '').toString();
+    const escaped = v.replace(/"/g, '""');
+    const needsPrefix = /^[=+\-@]/.test(escaped.trimStart());
+    const protectedVal = needsPrefix ? `'` + escaped : escaped;
+    return `"${protectedVal}"`;
+  };
+
   const generateAccountingCSV = () => {
     const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
@@ -37,17 +45,17 @@ export const ExportOptions = ({ isOpen, onClose, expenses, categoryTotals, tripN
 
     // Data rows
     const dataRows = sortedExpenses.map(expense => [
-      `"${tripName}"`,
+      safeCSVField(tripName),
       expense.date,
-      `"${expense.merchant}"`,
-      expense.category,
+      safeCSVField(expense.merchant),
+      safeCSVField(expense.category),
       expense.amount.toFixed(2),
       expense.currency || 'USD',
       expense.originalAmount ? expense.originalAmount.toFixed(2) : '',
       expense.originalCurrency || '',
       expense.exchangeRate ? expense.exchangeRate.toFixed(4) : '',
-      `"${expense.tags?.join(', ') || ''}"`,
-      `"${expense.notes || ''}"`,
+      safeCSVField(expense.tags?.join(', ') || ''),
+      safeCSVField(expense.notes || ''),
       expense.photo ? 'Yes' : 'No'
     ]);
 
@@ -86,10 +94,12 @@ export const ExportOptions = ({ isOpen, onClose, expenses, categoryTotals, tripN
   const generateDetailedReport = () => {
     const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
+    const sanitizeText = (val: string) => (val ?? '').toString().replace(/[<>]/g, '');
+
     const reportContent = `
 TRAVEL EXPENSE REPORT
 =====================
-Trip: ${tripName}
+Trip: ${sanitizeText(tripName)}
 Report Generated: ${new Date().toLocaleDateString()}
 
 EXECUTIVE SUMMARY
@@ -111,13 +121,13 @@ DETAILED EXPENSE LOG
 --------------------
 ${sortedExpenses
   .map(expense => {
-    const tags = expense.tags?.length ? ` [${expense.tags.join(', ')}]` : '';
+    const tags = expense.tags?.length ? ` [${expense.tags.map(sanitizeText).join(', ')}]` : '';
     const currency = expense.originalCurrency && expense.originalAmount 
       ? ` (${expense.originalCurrency} ${expense.originalAmount.toFixed(2)} @ ${expense.exchangeRate?.toFixed(4)})`
       : '';
-    const notes = expense.notes ? `\n    Notes: ${expense.notes}` : '';
+    const notes = expense.notes ? `\n    Notes: ${sanitizeText(expense.notes)}` : '';
     
-    return `${expense.date} | ${expense.merchant.padEnd(25)} | ${expense.category.padEnd(15)} | $${expense.amount.toFixed(2).padStart(8)}${currency}${tags}${notes}`;
+    return `${expense.date} | ${sanitizeText(expense.merchant).padEnd(25)} | ${sanitizeText(expense.category).padEnd(15)} | $${expense.amount.toFixed(2).padStart(8)}${currency}${tags}${notes}`;
   })
   .join('\n')}
 
@@ -128,20 +138,20 @@ ${Array.from(new Set(expenses.flatMap(e => e.tags || [])))
   .map(tag => {
     const taggedExpenses = expenses.filter(e => e.tags?.includes(tag));
     const tagTotal = taggedExpenses.reduce((sum, e) => sum + e.amount, 0);
-    return `${tag.padEnd(20)} ${taggedExpenses.length} expenses, $${tagTotal.toFixed(2)}`;
+    return `${sanitizeText(tag).padEnd(20)} ${taggedExpenses.length} expenses, $${tagTotal.toFixed(2)}`;
   })
   .join('\n')}
 
 RECURRING EXPENSES
 ------------------
 ${expenses.filter(e => e.isRecurring)
-  .map(e => `${e.merchant.padEnd(25)} | ${e.category.padEnd(15)} | $${e.amount.toFixed(2).padStart(8)}`)
+  .map(e => `${sanitizeText(e.merchant).padEnd(25)} | ${sanitizeText(e.category).padEnd(15)} | $${e.amount.toFixed(2).padStart(8)}`)
   .join('\n') || 'No recurring expenses detected'}
 
 CURRENCY CONVERSIONS
 --------------------
 ${expenses.filter(e => e.originalCurrency && e.originalAmount)
-  .map(e => `${e.date} | ${e.merchant.padEnd(20)} | ${e.originalCurrency} ${e.originalAmount?.toFixed(2)} → ${e.currency || 'USD'} ${e.amount.toFixed(2)} (Rate: ${e.exchangeRate?.toFixed(4)})`)
+  .map(e => `${e.date} | ${sanitizeText(e.merchant).padEnd(20)} | ${e.originalCurrency} ${e.originalAmount?.toFixed(2)} → ${e.currency || 'USD'} ${e.amount.toFixed(2)} (Rate: ${e.exchangeRate?.toFixed(4)})`)
   .join('\n') || 'No currency conversions'}
 
 END OF REPORT
