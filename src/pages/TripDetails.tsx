@@ -12,10 +12,11 @@ import { ExportOptions } from "@/components/ExportOptions";
 import { SpendingChart } from "@/components/SpendingChart";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Trip } from "@/types/Trip";
 import { Expense } from "@/types/Expense";
 import { HelpTooltip } from "@/components/HelpTooltip";
+import { Helmet } from "react-helmet-async";
 
 const TripDetails = () => {
   const { tripId } = useParams<{ tripId: string }>();
@@ -53,6 +54,9 @@ const TripDetails = () => {
       setFilteredExpenses(loadedExpenses);
     }
   }, [tripId]);
+
+  const location = useLocation();
+  const canonicalUrl = `${window.location.origin}${location.pathname}`;
 
   const saveTrip = (updatedTrip: Trip) => {
     const savedTrips = localStorage.getItem('trips');
@@ -130,6 +134,12 @@ const TripDetails = () => {
   if (!trip) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Helmet>
+          <title>Expense Zen — Trip Not Found</title>
+          <meta name="description" content="The requested trip could not be found." />
+          <link rel="canonical" href={canonicalUrl} />
+          <meta name="robots" content="noindex" />
+        </Helmet>
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900">Trip not found</h2>
           <Button onClick={() => navigate('/')} className="mt-4">
@@ -143,6 +153,11 @@ const TripDetails = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 transition-all duration-300">
+      <Helmet>
+        <title>Expense Zen — {trip.name}</title>
+        <meta name="description" content={`View expenses, analytics and map for ${trip.name}.`} />
+        <link rel="canonical" href={canonicalUrl} />
+      </Helmet>
       <div className="max-w-md mx-auto bg-white min-h-screen">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 transition-all duration-300">

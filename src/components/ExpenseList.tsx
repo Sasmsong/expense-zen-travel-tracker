@@ -102,7 +102,9 @@ export const ExpenseList = ({ expenses, onDelete, onUpdate }: ExpenseListProps) 
               <div className="mt-3">
                 <img 
                   src={expense.photo} 
-                  alt="Receipt" 
+                  alt={`Receipt for ${expense.merchant}`} 
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-32 object-cover rounded-lg border"
                 />
               </div>

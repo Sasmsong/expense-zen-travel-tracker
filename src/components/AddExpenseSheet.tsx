@@ -220,7 +220,7 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
             <div className="space-y-2">
               <Label>Receipt Photo</Label>
               {capturedPhoto ? (
-                <img src={capturedPhoto} alt="Receipt" className="w-full h-32 object-cover rounded-lg" />
+                <img src={capturedPhoto} alt="Receipt photo preview" loading="lazy" decoding="async" className="w-full h-32 object-cover rounded-lg" />
               ) : (
                 <PhotoCapture onCapture={handlePhotoCapture} onInvoiceParsed={handleInvoiceParsed} />
               )}

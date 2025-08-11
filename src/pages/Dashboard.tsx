@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Plus, Settings, TrendingUp, Calendar, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Trip } from "@/types/Trip";
 import { Expense } from "@/types/Expense";
 import { formatCurrency } from "@/utils/currencyUtils";
 import { useSettings } from "@/contexts/SettingsContext";
+import { Helmet } from "react-helmet-async";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -34,6 +35,9 @@ const Dashboard = () => {
     
     setAllExpenses(expenseData);
   }, []);
+
+  const location = useLocation();
+  const canonicalUrl = `${window.location.origin}${location.pathname}`;
 
   const createNewTrip = () => {
     const newTrip: Trip = {
@@ -79,6 +83,11 @@ const Dashboard = () => {
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
+      <Helmet>
+        <title>Expense Zen — Travel Expense Dashboard</title>
+        <meta name="description" content="Track travel expenses, receipts, and insights in Expense Zen." />
+        <link rel="canonical" href={canonicalUrl} />
+      </Helmet>
       <div className={`max-w-md mx-auto min-h-screen ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'} shadow-xl`}>
         {/* Enhanced Header */}
         <div 

@@ -6,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSettings } from '@/contexts/SettingsContext';
 import { CurrencySelector } from '@/components/CurrencySelector';
 import { useToast } from '@/hooks/use-toast';
+import { Helmet } from 'react-helmet-async';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -30,6 +31,9 @@ const Settings = () => {
   } = useSettings();
 
   const [tempColor, setTempColor] = useState(accentColor);
+
+  const location = useLocation();
+  const canonicalUrl = `${window.location.origin}${location.pathname}`;
 
   const accentColors = [
     { name: 'Blue', value: '#3B82F6' },
@@ -70,6 +74,11 @@ const Settings = () => {
 
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+      <Helmet>
+        <title>Expense Zen — Settings</title>
+        <meta name="description" content="Customize theme, currency, reminders, and backups in Expense Zen." />
+        <link rel="canonical" href={canonicalUrl} />
+      </Helmet>
       <div className={`max-w-md mx-auto min-h-screen ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4" style={{ background: `linear-gradient(to right, ${accentColor}, ${accentColor}dd)` }}>

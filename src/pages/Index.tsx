@@ -6,6 +6,8 @@ import { ExpenseList } from "@/components/ExpenseList";
 import { AddExpenseSheet } from "@/components/AddExpenseSheet";
 import { TripHeader } from "@/components/TripHeader";
 import { ExportOptions } from "@/components/ExportOptions";
+import { Helmet } from "react-helmet-async";
+import { useLocation } from "react-router-dom";
 
 export interface Expense {
   id: string;
@@ -22,6 +24,9 @@ const Index = () => {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [currentTrip, setCurrentTrip] = useState("Business Trip - NYC");
+  const location = useLocation();
+  const canonicalUrl = `${window.location.origin}${location.pathname}`;
+
 
   const addExpense = (expense: Expense) => {
     setExpenses([...expenses, expense]);
@@ -49,6 +54,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Helmet>
+        <title>Expense Zen — Legacy</title>
+        <meta name="description" content="Legacy demo page for Expense Zen travel expense tracker." />
+        <link rel="canonical" href={canonicalUrl} />
+      </Helmet>
       <div className="max-w-md mx-auto bg-white min-h-screen">
         <TripHeader 
           tripName={currentTrip}

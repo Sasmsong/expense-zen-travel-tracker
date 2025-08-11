@@ -132,7 +132,7 @@ export const EditExpenseSheet = ({ expense, isOpen, onClose, onUpdate }: EditExp
           {expense?.photo && (
             <div className="space-y-2">
               <Label>Receipt Photo</Label>
-              <img src={expense.photo} alt="Receipt" className="w-full h-32 object-cover rounded-lg" />
+              <img src={expense.photo} alt="Receipt photo" loading="lazy" decoding="async" className="w-full h-32 object-cover rounded-lg" />
             </div>
           )}
 
