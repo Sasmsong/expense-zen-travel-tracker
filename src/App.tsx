@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { HelmetProvider } from "react-helmet-async";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const TripDetails = lazy(() => import("./pages/TripDetails"));
@@ -37,6 +38,7 @@ const App = () => (
         <HelmetProvider>
           <Toaster />
           <Sonner />
+          <OfflineIndicator />
           <MigrationGate />
           <BrowserRouter>
             <ErrorBoundary>

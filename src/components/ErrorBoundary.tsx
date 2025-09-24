@@ -1,4 +1,5 @@
 import React from "react";
+import { ErrorFallback } from "@/components/ErrorFallback";
 
 type Props = { children: React.ReactNode };
 
@@ -21,10 +22,11 @@ class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-6 text-center">
-          <h1 className="text-xl font-semibold">Something went wrong.</h1>
-          <p className="text-sm text-gray-500">Please refresh the page.</p>
-        </div>
+        <ErrorFallback 
+          title="Application Error"
+          description="The application encountered an unexpected error. Please refresh the page to continue."
+          showRetry={true}
+        />
       );
     }
     return this.props.children;
