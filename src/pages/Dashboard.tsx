@@ -80,8 +80,8 @@ const Dashboard = () => {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
       <Helmet>
-        <title>Expense Zen — Travel Expense Dashboard</title>
-        <meta name="description" content="Track travel expenses, receipts, and insights in Expense Zen." />
+        <title>Spend Savvy — Travel Expense Dashboard</title>
+        <meta name="description" content="Track travel expenses, receipts, and insights in Spend Savvy." />
         <link rel="canonical" href={canonicalUrl} />
       </Helmet>
       <div className={`max-w-md mx-auto min-h-screen ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'} shadow-xl`}>
@@ -94,7 +94,7 @@ const Dashboard = () => {
           <div className="relative z-10">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Expense Zen</h1>
+                <h1 className="text-4xl font-bold text-white mb-2">Spend Savvy</h1>
                 <p className="text-white/90 text-lg">Smart travel expense tracker</p>
               </div>
               <Button

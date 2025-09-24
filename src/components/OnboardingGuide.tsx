@@ -14,7 +14,7 @@ export const OnboardingGuide = ({ isOpen, onClose }: OnboardingGuideProps) => {
 
   const steps = [
     {
-      title: "Welcome to Expense Zen!",
+      title: "Welcome to Spend Savvy!",
       description: "Track your travel expenses effortlessly with smart features and beautiful insights.",
       icon: <Camera className="w-12 h-12 text-blue-500" />,
       tip: "Start by creating your first trip"

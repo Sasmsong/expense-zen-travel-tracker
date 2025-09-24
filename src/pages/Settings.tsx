@@ -75,8 +75,8 @@ const Settings = () => {
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
       <Helmet>
-        <title>Expense Zen — Settings</title>
-        <meta name="description" content="Customize theme, currency, reminders, and backups in Expense Zen." />
+        <title>Spend Savvy — Settings</title>
+        <meta name="description" content="Customize theme, currency, reminders, and backups in Spend Savvy." />
         <link rel="canonical" href={canonicalUrl} />
       </Helmet>
       <div className={`max-w-md mx-auto min-h-screen ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>

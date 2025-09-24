@@ -131,7 +131,7 @@ const TripDetails = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Helmet>
-          <title>Expense Zen — Trip Not Found</title>
+          <title>Spend Savvy — Trip Not Found</title>
           <meta name="description" content="The requested trip could not be found." />
           <link rel="canonical" href={canonicalUrl} />
           <meta name="robots" content="noindex" />
@@ -150,7 +150,7 @@ const TripDetails = () => {
   return (
     <div className="min-h-screen bg-gray-50 transition-all duration-300">
       <Helmet>
-        <title>Expense Zen — {trip.name}</title>
+        <title>Spend Savvy — {trip.name}</title>
         <meta name="description" content={`View expenses, analytics and map for ${trip.name}.`} />
         <link rel="canonical" href={canonicalUrl} />
       </Helmet>

@@ -17,7 +17,7 @@ const NotFound = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <Helmet>
-        <title>Expense Zen — 404 Not Found</title>
+        <title>Spend Savvy — 404 Not Found</title>
         <meta name="description" content="Page not found." />
         <meta name="robots" content="noindex" />
         <link rel="canonical" href={canonicalUrl} />

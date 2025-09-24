@@ -55,8 +55,8 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Helmet>
-        <title>Expense Zen — Legacy</title>
-        <meta name="description" content="Legacy demo page for Expense Zen travel expense tracker." />
+        <title>Spend Savvy — Legacy</title>
+        <meta name="description" content="Legacy demo page for Spend Savvy travel expense tracker." />
         <link rel="canonical" href={canonicalUrl} />
       </Helmet>
       <div className="max-w-md mx-auto bg-white min-h-screen">
