@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-zen-v1';
+const CACHE_NAME = 'spend-savvy-v1';
 const STATIC_CACHE = 'static-v1';
 const DYNAMIC_CACHE = 'dynamic-v1';
 
@@ -126,6 +126,6 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('Expense Zen', options)
+    self.registration.showNotification('Spend Savvy', options)
   );
 });

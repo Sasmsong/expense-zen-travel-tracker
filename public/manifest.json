@@ -1,6 +1,6 @@
 {
-  "name": "Expense Zen Travel Tracker",
-  "short_name": "ExpenseZen",
+  "name": "Spend Savvy Travel Tracker",
+  "short_name": "SpendSavvy",
   "description": "Track your travel expenses with ease",
   "start_url": "/",
   "display": "standalone",
