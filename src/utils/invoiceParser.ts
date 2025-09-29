@@ -1,5 +1,5 @@
 
-import { createWorker } from 'tesseract.js';
+import Tesseract from 'tesseract.js';
 
 export interface ParsedInvoice {
   total?: number;
@@ -12,11 +12,9 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
   try {
     console.log('Starting OCR processing...', imageFile.substring(0, 50) + '...');
     
-    const worker = await createWorker('eng', 1, {
+    const { data: { text } } = await Tesseract.recognize(imageFile, 'eng', {
       logger: (m) => console.log('Tesseract:', m)
     });
-    const { data: { text } } = await worker.recognize(imageFile);
-    await worker.terminate();
     
     console.log('OCR Text:', text);
     
