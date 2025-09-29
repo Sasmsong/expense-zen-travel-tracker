@@ -5,6 +5,7 @@ export interface ParsedInvoice {
   total?: number;
   category?: string;
   date?: string;
+  merchant?: string;
 }
 
 export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoice> => {
@@ -29,8 +30,31 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
 const parseInvoiceText = (text: string): ParsedInvoice => {
   const result: ParsedInvoice = {};
   
-  // Extract total amount (robust, line-aware)
+  // Extract merchant name (usually first meaningful line at top of receipt)
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  
+  // Look for merchant in first few lines (before address/date typically)
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    const line = lines[i];
+    // Skip common non-merchant patterns
+    if (/^(receipt|invoice|bill|tax|date|time|order|table|server)/i.test(line)) continue;
+    if (/^\d+[\s,.-]*\d*$/.test(line)) continue; // Skip pure numbers
+    if (line.length < 3 || line.length > 50) continue; // Reasonable merchant name length
+    
+    // Clean up the merchant name
+    let merchantName = line
+      .replace(/[*#@]+/g, '') // Remove special chars
+      .trim();
+    
+    // If it looks like a real merchant name
+    if (merchantName.length >= 3) {
+      result.merchant = merchantName;
+      break;
+    }
+  }
+  
+  // Extract total amount (robust, line-aware)
+  // Reuse lines array from merchant extraction
 
   const parseAmountStr = (raw: string): number | null => {
     let a = raw.trim().replace(/[^0-9.,\s$€£]/g, '');

@@ -78,6 +78,11 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
     console.log('Invoice parsed:', parsedData);
     
     // Security: Validate and sanitize parsed data
+    if (parsedData.merchant && parsedData.merchant.trim()) {
+      const validatedMerchant = InputValidator.validateMerchant(parsedData.merchant.trim());
+      setMerchant(validatedMerchant);
+    }
+    
     if (parsedData.total) {
       const validatedAmount = InputValidator.validateAmount(parsedData.total);
       setAmount(validatedAmount.toString());
