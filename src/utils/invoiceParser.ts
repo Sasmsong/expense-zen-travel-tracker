@@ -9,9 +9,11 @@ export interface ParsedInvoice {
 
 export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoice> => {
   try {
-    console.log('Starting OCR processing...');
+    console.log('Starting OCR processing...', imageFile.substring(0, 50) + '...');
     
-    const worker = await createWorker();
+    const worker = await createWorker('eng', 1, {
+      logger: m => console.log('Tesseract:', m)
+    });
     const { data: { text } } = await worker.recognize(imageFile);
     await worker.terminate();
     

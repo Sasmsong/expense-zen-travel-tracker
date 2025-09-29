@@ -63,6 +63,7 @@ export const PhotoCapture = ({ onCapture, onInvoiceParsed }: PhotoCaptureProps) 
       
       // Start OCR processing
       if (onInvoiceParsed) {
+        console.log('onInvoiceParsed callback provided, starting OCR...');
         setIsProcessing(true);
         try {
           console.log('Processing invoice image...');
