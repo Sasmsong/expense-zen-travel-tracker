@@ -192,5 +192,20 @@ const parseInvoiceText = (text: string): ParsedInvoice => {
     }
   }
   
+  // Fallback merchant extraction if missing
+  if (!result.merchant) {
+    const isMeta = (l: string) => /^(receipt|invoice|bill|tax|date|time|order|table|server|thank|visit|subtotal|total|balance|amount|change|cash|card|visa|mastercard)/i.test(l);
+    const isAddress = (l: string) => /(street|st\.|road|rd\.|ave\.|avenue|blvd\.|boulevard|suite|ste\.|floor|fl\.|zip|postcode|po box|city|state|country)/i.test(l) || /\d{2,}.*\d{2,}/.test(l);
+    const isTooNumeric = (l: string) => (l.replace(/[^0-9]/g, '').length) > (l.replace(/[^A-Za-z]/g, '').length + 2);
+    const top = (typeof lines !== 'undefined' && Array.isArray(lines) ? lines : text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)).slice(0, 12);
+    const candidates = top.filter(l => l.length >= 3 && l.length <= 60 && /[A-Za-z]/.test(l) && !isMeta(l) && !isAddress(l) && !isTooNumeric(l));
+    const brandMatch = (typeof lines !== 'undefined' && Array.isArray(lines) ? lines : top).find(l => /(inc\.?|llc\.?|ltd\.?|gmbh|s\.a\.|pty)/i.test(l));
+    let chosen = candidates[0] || brandMatch;
+    if (chosen) {
+      let clean = chosen.replace(/[*#@]+/g, '').replace(/\s{2,}/g, ' ').trim();
+      result.merchant = clean;
+    }
+  }
+  
   return result;
 };
