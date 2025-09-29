@@ -41,8 +41,10 @@ const parseInvoiceText = (text: string): ParsedInvoice => {
   for (const pattern of totalPatterns) {
     const match = text.match(pattern);
     if (match) {
-      const amount = parseFloat(match[1]);
-      if (amount > 0) {
+      const raw = (match[1] ?? match[0]) as string;
+      const cleaned = raw.replace(/[, ]/g, '').replace(/[^\d.]/g, '');
+      const amount = parseFloat(cleaned);
+      if (!isNaN(amount) && amount > 0) {
         result.total = amount;
         break;
       }
@@ -93,12 +95,12 @@ const parseInvoiceText = (text: string): ParsedInvoice => {
   
   // Extract category based on merchant keywords
   const categoryKeywords = {
-    'Food': ['restaurant', 'cafe', 'pizza', 'burger', 'food', 'kitchen', 'diner', 'bistro', 'grill', 'bar'],
-    'Coffee': ['coffee', 'starbucks', 'espresso', 'latte', 'cappuccino', 'cafe'],
+    'Food': ['restaurant', 'cafe', 'pizza', 'burger', 'food', 'kitchen', 'diner', 'bistro', 'grill', 'bar', 'grocery', 'supermarket', 'market', 'deli', 'bakery', 'sushi', 'taco', 'bbq'],
+    'Coffee': ['coffee', 'starbucks', 'espresso', 'latte', 'cappuccino', 'cafe', 'coffeehouse'],
     'Hotel': ['hotel', 'inn', 'resort', 'lodge', 'motel', 'accommodation', 'stay'],
-    'Transportation': ['taxi', 'uber', 'lyft', 'bus', 'train', 'metro', 'transport', 'parking', 'gas', 'fuel'],
+    'Transportation': ['taxi', 'uber', 'lyft', 'bus', 'train', 'metro', 'transport', 'parking', 'gas', 'fuel', 'ride', 'cab', 'toll'],
     'Entertainment': ['movie', 'theater', 'cinema', 'show', 'concert', 'museum', 'park', 'entertainment'],
-    'Flights': ['airline', 'airways', 'flight', 'airport', 'boarding']
+    'Flights': ['airline', 'airways', 'flight', 'airport', 'boarding', 'baggage', 'luggage']
   };
   
   const lowerText = text.toLowerCase();
