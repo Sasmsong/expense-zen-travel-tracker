@@ -12,7 +12,7 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
     console.log('Starting OCR processing...', imageFile.substring(0, 50) + '...');
     
     const worker = await createWorker('eng', 1, {
-      logger: m => console.log('Tesseract:', m)
+      logger: (m) => console.log('Tesseract:', m)
     });
     const { data: { text } } = await worker.recognize(imageFile);
     await worker.terminate();
@@ -29,27 +29,80 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
 const parseInvoiceText = (text: string): ParsedInvoice => {
   const result: ParsedInvoice = {};
   
-  // Extract total amount
-  const totalPatterns = [
-    /total[:\s]*\$?(\d+\.?\d*)/i,
-    /amount[:\s]*\$?(\d+\.?\d*)/i,
-    /\$(\d+\.\d{2})/g,
-    /(\d+\.\d{2})\s*total/i,
-    /grand total[:\s]*\$?(\d+\.?\d*)/i
-  ];
-  
-  for (const pattern of totalPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const raw = (match[1] ?? match[0]) as string;
-      const cleaned = raw.replace(/[, ]/g, '').replace(/[^\d.]/g, '');
-      const amount = parseFloat(cleaned);
-      if (!isNaN(amount) && amount > 0) {
-        result.total = amount;
-        break;
+  // Extract total amount (robust, line-aware)
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  const parseAmountStr = (raw: string): number | null => {
+    let a = raw.trim().replace(/[^0-9.,\s$€£]/g, '');
+    // Remove currency symbols and spaces around
+    a = a.replace(/[$€£\s]/g, '');
+    const hasComma = a.includes(',');
+    const hasDot = a.includes('.');
+    let normalized = a;
+    if (hasComma && hasDot) {
+      if (a.lastIndexOf(',') > a.lastIndexOf('.')) {
+        // 1.234,56 => 1234.56
+        normalized = a.replace(/\./g, '').replace(',', '.');
+      } else {
+        // 1,234.56 => 1234.56
+        normalized = a.replace(/,/g, '');
+      }
+    } else if (hasComma && !hasDot) {
+      const parts = a.split(',');
+      if (parts.length === 2 && parts[1].length === 2) {
+        normalized = parts[0].replace(/[^0-9]/g, '') + '.' + parts[1];
+      } else {
+        normalized = a.replace(/,/g, '');
+      }
+    } else {
+      // remove thousand commas if any remain
+      normalized = a.replace(/,(?=\d{3}\b)/g, '');
+    }
+    const num = parseFloat(normalized);
+    return isNaN(num) ? null : num;
+  };
+
+  const amountRegex = /(?:USD|EUR|GBP|CAD|AUD|INR|JPY|CHF|CNY|RMB)?\s*[$€£]?\s*([0-9]{1,3}(?:[.,\s][0-9]{3})*(?:[.,][0-9]{2})|[0-9]+(?:[.,][0-9]{2}))/g;
+  const keywordPriority = ['grand total','total due','amount due','balance due','invoice total','total amount','total'];
+
+  outer: for (const kw of keywordPriority) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lower = line.toLowerCase();
+      if (!lower.includes(kw)) continue;
+
+      // Try amounts on the same line first
+      const sameLineMatches = [...line.matchAll(amountRegex)];
+      if (sameLineMatches.length) {
+        const last = sameLineMatches[sameLineMatches.length - 1][1];
+        const val = parseAmountStr(last);
+        if (val && val > 0) { result.total = val; break outer; }
+      }
+
+      // Then try the next line (common in printed receipts)
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        const nextMatches = [...nextLine.matchAll(amountRegex)];
+        if (nextMatches.length) {
+          const last = nextMatches[nextMatches.length - 1][1];
+          const val = parseAmountStr(last);
+          if (val && val > 0) { result.total = val; break outer; }
+        }
       }
     }
   }
+
+  // Fallback: take the maximum amount found in the entire text
+  if (result.total == null) {
+    const allMatches = [...text.matchAll(amountRegex)]
+      .map(m => parseAmountStr(m[1]))
+      .filter((n): n is number => typeof n === 'number' && !isNaN(n));
+    if (allMatches.length) {
+      const max = Math.max(...allMatches);
+      if (max > 0) result.total = max;
+    }
+  }
+
   
   // Extract date
   const datePatterns = [
@@ -71,16 +124,20 @@ const parseInvoiceText = (text: string): ParsedInvoice => {
           if (monthIndex !== -1) {
             const day = parseInt(match[2]);
             const year = parseInt(match[3]);
-            date = new Date(year, monthIndex, day);
+            date = new Date(year < 100 ? year + 2000 : year, monthIndex, day);
           } else {
             continue;
           }
         } else {
           // Handle numeric date patterns
           const parts = [match[1], match[2], match[3]].map(p => parseInt(p));
-          // Assume MM/DD/YYYY or DD/MM/YYYY format
-          if (parts[2] < 100) parts[2] += 2000; // Handle 2-digit years
-          date = new Date(parts[2], parts[0] - 1, parts[1]); // Assuming MM/DD/YYYY
+          let year = parts[2];
+          if (year < 100) year += 2000; // 2-digit years to 20xx
+          // Heuristic: if first part > 12, it is likely DD/MM/YYYY
+          const monthFirst = parts[0] <= 12;
+          const month = monthFirst ? parts[0] : parts[1];
+          const day = monthFirst ? parts[1] : parts[0];
+          date = new Date(year, month - 1, day);
         }
         
         if (!isNaN(date.getTime())) {
@@ -95,12 +152,12 @@ const parseInvoiceText = (text: string): ParsedInvoice => {
   
   // Extract category based on merchant keywords
   const categoryKeywords = {
-    'Food': ['restaurant', 'cafe', 'pizza', 'burger', 'food', 'kitchen', 'diner', 'bistro', 'grill', 'bar', 'grocery', 'supermarket', 'market', 'deli', 'bakery', 'sushi', 'taco', 'bbq'],
-    'Coffee': ['coffee', 'starbucks', 'espresso', 'latte', 'cappuccino', 'cafe', 'coffeehouse'],
+    'Food': ['restaurant', 'cafe', 'pizza', 'burger', 'food', 'kitchen', 'diner', 'bistro', 'grill', 'bar', 'grocery', 'supermarket', 'market', 'deli', 'bakery', 'sushi', 'taco', 'bbq', 'walmart', 'target', 'costco', 'aldi', 'tesco', 'carrefour', 'kroger', 'whole foods', 'trader joe', "trader joe's", 'lidl', 'panera', 'chipotle', 'mcdonald', 'kfc', 'burger king', 'domino', 'pizza hut', 'subway', 'wendy', 'taco bell', 'five guys', 'panda express'],
+    'Coffee': ['coffee', 'starbucks', 'espresso', 'latte', 'cappuccino', 'cafe', 'coffeehouse', 'dunkin', 'tim hortons', 'peet', 'caribou'],
     'Hotel': ['hotel', 'inn', 'resort', 'lodge', 'motel', 'accommodation', 'stay'],
-    'Transportation': ['taxi', 'uber', 'lyft', 'bus', 'train', 'metro', 'transport', 'parking', 'gas', 'fuel', 'ride', 'cab', 'toll'],
+    'Transportation': ['taxi', 'uber', 'lyft', 'bus', 'train', 'metro', 'transport', 'parking', 'gas', 'fuel', 'ride', 'cab', 'toll', 'petrol', 'diesel', 'shell', 'bp', 'esso', 'chevron', 'exxon', 'arco'],
     'Entertainment': ['movie', 'theater', 'cinema', 'show', 'concert', 'museum', 'park', 'entertainment'],
-    'Flights': ['airline', 'airways', 'flight', 'airport', 'boarding', 'baggage', 'luggage']
+    'Flights': ['airline', 'airways', 'flight', 'airport', 'boarding', 'baggage', 'luggage', 'ticket', 'fare']
   };
   
   const lowerText = text.toLowerCase();
