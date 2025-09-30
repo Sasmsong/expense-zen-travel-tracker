@@ -18,8 +18,16 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
         if (m.status === 'recognizing text') {
           console.log(`📝 OCR Progress: ${Math.round(m.progress * 100)}%`);
         }
-      }
-    });
+      },
+      // Explicitly configure CDN paths to avoid bundler issues loading workers/wasm/lang files
+      workerPath: 'https://unpkg.com/tesseract.js@6.0.1/dist/worker.min.js',
+      corePath: 'https://unpkg.com/tesseract.js-core@6.0.0/tesseract-core.wasm.js',
+      langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+      // Improve recognition on receipts
+      tessedit_pageseg_mode: 6, // Assume a single uniform block of text
+      preserve_interword_spaces: '1',
+      user_defined_dpi: '300',
+    } as any);
     
     console.log('✅ OCR Complete! Extracted text:');
     console.log('---START OCR TEXT---');
