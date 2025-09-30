@@ -13,6 +13,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const TripDetails = lazy(() => import("./pages/TripDetails"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Index = lazy(() => import("./pages/Index"));
+const OCRDebug = lazy(() => import("./pages/OCRDebug"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
                   <Route path="/trip/:tripId" element={<TripDetails />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/legacy" element={<Index />} />
+                  <Route path="/ocr-debug" element={<OCRDebug />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>

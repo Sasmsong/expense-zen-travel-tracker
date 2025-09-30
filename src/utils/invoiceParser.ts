@@ -13,6 +13,21 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
     console.log('🔍 Starting OCR processing...');
     console.log('📄 Image data preview:', imageFile.substring(0, 100) + '...');
 
+    // Try Cloud OCR first (more reliable)
+    try {
+      console.log('☁️ Attempting Cloud OCR...');
+      const cloudResult = await tryCloudOCR(imageFile);
+      if (cloudResult && (cloudResult.total || cloudResult.merchant || cloudResult.date || cloudResult.category)) {
+        console.log('✅ Cloud OCR successful:', cloudResult);
+        return cloudResult;
+      }
+      console.log('⚠️ Cloud OCR returned no useful data, falling back to local OCR');
+    } catch (cloudError) {
+      console.log('⚠️ Cloud OCR failed, falling back to local OCR:', cloudError);
+    }
+
+    // Fallback: Local OCR processing
+    console.log('🔄 Starting local OCR processing...');
     // Preprocess image to improve OCR success
     const processed = await preprocessImage(imageFile);
 
@@ -43,6 +58,10 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
     if ((!parsed.total && !parsed.merchant && !parsed.date && !parsed.category) && text.trim().length > 0) {
       console.log('🔁 Second pass OCR with different PSM...');
       const { data: { text: text2 } } = await Tesseract.recognize(processed, 'eng', {
+        logger: (m) => console.log(`📝 OCR Pass 2: ${Math.round(m.progress * 100)}%`),
+        workerPath: 'https://unpkg.com/tesseract.js@6.0.1/dist/worker.min.js',
+        corePath: 'https://unpkg.com/tesseract.js-core@6.0.0/tesseract-core.wasm.js',
+        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
         tessedit_pageseg_mode: 4,
         preserve_interword_spaces: '1',
         user_defined_dpi: '300',
@@ -67,24 +86,39 @@ function preprocessImage(imageDataUrl: string): Promise<string> {
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       const MAX_SIDE = 1600;
-      const scale = Math.min(MAX_SIDE / Math.max(img.width, img.height), 2);
-      const w = Math.round(img.width * (scale < 1 ? 1 : scale));
-      const h = Math.round(img.height * (scale < 1 ? 1 : scale));
+      const currentMax = Math.max(img.width, img.height);
+      // FIXED: Only scale down if image is larger than MAX_SIDE
+      const scale = currentMax > MAX_SIDE ? MAX_SIDE / currentMax : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      
+      console.log(`📐 Image resize: ${img.width}x${img.height} -> ${w}x${h} (scale: ${scale.toFixed(2)})`);
+      
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext('2d');
       if (!ctx) return resolve(imageDataUrl);
+      
+      // Draw image
       ctx.drawImage(img, 0, 0, w, h);
       const imageData = ctx.getImageData(0, 0, w, h);
       const data = imageData.data;
-      const contrast = 1.2; // 20% boost
+      
+      // Apply grayscale, contrast, and mild thresholding
+      const contrast = 1.3;
       const intercept = 128 * (1 - contrast);
+      const threshold = 180; // Mild thresholding for cleaner text
+      
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i + 1], b = data[i + 2];
         let y = 0.299 * r + 0.587 * g + 0.114 * b; // grayscale
         y = contrast * y + intercept; // contrast
         y = Math.max(0, Math.min(255, y));
+        
+        // Mild thresholding: make light colors whiter, dark colors darker
+        if (y > threshold) y = Math.min(255, y + 20);
+        
         data[i] = data[i + 1] = data[i + 2] = y;
       }
       ctx.putImageData(imageData, 0, 0);
@@ -159,8 +193,8 @@ const extractTotal = (lines: string[], text: string): number | undefined => {
     'balance due', 'invoice total', 'final total'
   ];
   
-  // Create a comprehensive amount regex
-  const amountRegex = /\$?\s*([0-9]{1,6}(?:[.,][0-9]{2,3})*(?:\.[0-9]{2})?)/g;
+  // Create a comprehensive amount regex - improved to catch more patterns
+  const amountRegex = /(?:[$€£¥₹]|[A-Z]{3})?\s*([0-9]{1,6}(?:[.,][0-9]{2,3})*(?:\.[0-9]{2})?)/g;
   
   // First, try to find amounts near total keywords
   for (const keyword of totalKeywords) {
@@ -346,4 +380,28 @@ const extractCategory = (text: string, merchant?: string): string | undefined =>
   
   console.log('❌ No category found');
   return undefined;
+};
+
+// Cloud OCR using Lovable AI
+const tryCloudOCR = async (imageData: string): Promise<ParsedInvoice | null> => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/receipt-extract`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ imageData }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Cloud OCR failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.error ? null : result;
+  } catch (error) {
+    console.error('Cloud OCR error:', error);
+    return null;
+  }
 };
