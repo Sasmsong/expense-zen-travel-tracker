@@ -5,44 +5,95 @@ export interface ParsedInvoice {
   category?: string;
   date?: string;
   merchant?: string;
+  rawText?: string; // OCR raw text for debugging/fallback UI
 }
 
 export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoice> => {
   try {
     console.log('🔍 Starting OCR processing...');
     console.log('📄 Image data preview:', imageFile.substring(0, 100) + '...');
-    
-    // Initialize Tesseract with better settings
-    const { data: { text } } = await Tesseract.recognize(imageFile, 'eng', {
+
+    // Preprocess image to improve OCR success
+    const processed = await preprocessImage(imageFile);
+
+    // Initialize Tesseract with better settings and explicit CDN paths
+    const { data: { text } } = await Tesseract.recognize(processed, 'eng', {
       logger: (m) => {
         if (m.status === 'recognizing text') {
           console.log(`📝 OCR Progress: ${Math.round(m.progress * 100)}%`);
         }
       },
-      // Explicitly configure CDN paths to avoid bundler issues loading workers/wasm/lang files
       workerPath: 'https://unpkg.com/tesseract.js@6.0.1/dist/worker.min.js',
       corePath: 'https://unpkg.com/tesseract.js-core@6.0.0/tesseract-core.wasm.js',
       langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-      // Improve recognition on receipts
-      tessedit_pageseg_mode: 6, // Assume a single uniform block of text
+      tessedit_pageseg_mode: 6,
       preserve_interword_spaces: '1',
       user_defined_dpi: '300',
     } as any);
-    
+
     console.log('✅ OCR Complete! Extracted text:');
     console.log('---START OCR TEXT---');
     console.log(text);
     console.log('---END OCR TEXT---');
-    
+
     const parsed = parseInvoiceText(text);
     console.log('🎯 Parsed invoice data:', parsed);
-    
-    return parsed;
+
+    // If nothing parsed but text exists, try a second pass with a different PSM
+    if ((!parsed.total && !parsed.merchant && !parsed.date && !parsed.category) && text.trim().length > 0) {
+      console.log('🔁 Second pass OCR with different PSM...');
+      const { data: { text: text2 } } = await Tesseract.recognize(processed, 'eng', {
+        tessedit_pageseg_mode: 4,
+        preserve_interword_spaces: '1',
+        user_defined_dpi: '300',
+      } as any);
+      const parsed2 = parseInvoiceText(text2);
+      if (parsed2.total || parsed2.merchant || parsed2.date || parsed2.category) {
+        return { ...parsed2, rawText: text2 };
+      }
+    }
+
+    return { ...parsed, rawText: text };
   } catch (error) {
     console.error('❌ OCR Error:', error);
     return {};
   }
 };
+
+// Image pre-processing helper
+function preprocessImage(imageDataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const MAX_SIDE = 1600;
+      const scale = Math.min(MAX_SIDE / Math.max(img.width, img.height), 2);
+      const w = Math.round(img.width * (scale < 1 ? 1 : scale));
+      const h = Math.round(img.height * (scale < 1 ? 1 : scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(imageDataUrl);
+      ctx.drawImage(img, 0, 0, w, h);
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+      const contrast = 1.2; // 20% boost
+      const intercept = 128 * (1 - contrast);
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        let y = 0.299 * r + 0.587 * g + 0.114 * b; // grayscale
+        y = contrast * y + intercept; // contrast
+        y = Math.max(0, Math.min(255, y));
+        data[i] = data[i + 1] = data[i + 2] = y;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(imageDataUrl);
+    img.src = imageDataUrl;
+  });
+}
 
 const parseInvoiceText = (text: string): ParsedInvoice => {
   const result: ParsedInvoice = {};

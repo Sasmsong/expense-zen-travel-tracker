@@ -73,18 +73,23 @@ export const PhotoCapture = ({ onCapture, onInvoiceParsed }: PhotoCaptureProps) 
           const parsedData = await parseInvoiceImage(imageData);
           console.log('🎉 Successfully parsed data:', parsedData);
           
-          if (parsedData && Object.keys(parsedData).length > 0) {
+          if (parsedData && (parsedData.merchant || parsedData.total || parsedData.date || parsedData.category)) {
             onInvoiceParsed(parsedData);
             toast({
               title: "Invoice processed!",
-              description: `Found: ${Object.keys(parsedData).filter(key => parsedData[key]).join(', ')}`,
+              description: `Found: ${[
+                parsedData.merchant && 'merchant',
+                parsedData.total && 'total',
+                parsedData.date && 'date',
+                parsedData.category && 'category'
+              ].filter(Boolean).join(', ')}`,
               variant: "default"
             });
           } else {
-            console.log('⚠️ No data extracted from image');
+            console.log('⚠️ OCR text present but fields not parsed:', parsedData?.rawText?.slice(0, 200));
             toast({
-              title: "No data found",
-              description: "Could not extract invoice data from this image.",
+              title: parsedData?.rawText ? "Text detected, but couldn't parse fields" : "No data found",
+              description: parsedData?.rawText ? "Please enter details manually; we couldn't reliably detect amount/merchant/date." : "Could not extract invoice data from this image.",
               variant: "default"
             });
           }
