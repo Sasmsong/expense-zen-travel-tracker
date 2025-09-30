@@ -1,4 +1,3 @@
-
 import Tesseract from 'tesseract.js';
 
 export interface ParsedInvoice {
@@ -10,161 +9,232 @@ export interface ParsedInvoice {
 
 export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoice> => {
   try {
-    console.log('Starting OCR processing...', imageFile.substring(0, 50) + '...');
+    console.log('🔍 Starting OCR processing...');
+    console.log('📄 Image data preview:', imageFile.substring(0, 100) + '...');
     
+    // Initialize Tesseract with better settings
     const { data: { text } } = await Tesseract.recognize(imageFile, 'eng', {
-      logger: (m) => console.log('Tesseract:', m)
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          console.log(`📝 OCR Progress: ${Math.round(m.progress * 100)}%`);
+        }
+      }
     });
     
-    console.log('OCR Text:', text);
+    console.log('✅ OCR Complete! Extracted text:');
+    console.log('---START OCR TEXT---');
+    console.log(text);
+    console.log('---END OCR TEXT---');
     
-    return parseInvoiceText(text);
+    const parsed = parseInvoiceText(text);
+    console.log('🎯 Parsed invoice data:', parsed);
+    
+    return parsed;
   } catch (error) {
-    console.error('OCR Error:', error);
+    console.error('❌ OCR Error:', error);
     return {};
   }
 };
 
 const parseInvoiceText = (text: string): ParsedInvoice => {
   const result: ParsedInvoice = {};
-  
-  // Extract merchant name (usually first meaningful line at top of receipt)
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   
-  // Look for merchant in first few lines (before address/date typically)
-  for (let i = 0; i < Math.min(5, lines.length); i++) {
+  console.log('🔎 Processing lines:', lines);
+  
+  // 1. Extract Merchant Name (first meaningful line)
+  result.merchant = extractMerchant(lines, text);
+  
+  // 2. Extract Total Amount 
+  result.total = extractTotal(lines, text);
+  
+  // 3. Extract Date
+  result.date = extractDate(text);
+  
+  // 4. Extract Category
+  result.category = extractCategory(text, result.merchant);
+  
+  return result;
+};
+
+const extractMerchant = (lines: string[], text: string): string | undefined => {
+  console.log('🏪 Extracting merchant...');
+  
+  // Look for merchant in the first few lines
+  for (let i = 0; i < Math.min(8, lines.length); i++) {
     const line = lines[i];
-    // Skip common non-merchant patterns
-    if (/^(receipt|invoice|bill|tax|date|time|order|table|server)/i.test(line)) continue;
-    if (/^\d+[\s,.-]*\d*$/.test(line)) continue; // Skip pure numbers
-    if (line.length < 3 || line.length > 50) continue; // Reasonable merchant name length
     
-    // Clean up the merchant name
-    let merchantName = line
-      .replace(/[*#@]+/g, '') // Remove special chars
+    // Skip obvious non-merchant patterns
+    if (
+      /^(receipt|invoice|bill|tax|date|time|order|table|server|thank|visit|www\.|http)/i.test(line) ||
+      /^\d+[\s,.-]*\d*$/.test(line) || // Pure numbers
+      /^[+\-\s\d()]+$/.test(line) || // Phone numbers
+      /address:|tel\.|phone:|email:/i.test(line) || // Address/contact info
+      line.length < 2 || line.length > 60
+    ) {
+      continue;
+    }
+    
+    // Clean up the line
+    const cleaned = line
+      .replace(/[*#@\-=_]+/g, '') // Remove decorative chars
+      .replace(/\s{2,}/g, ' ') // Multiple spaces to single
       .trim();
     
-    // If it looks like a real merchant name
-    if (merchantName.length >= 3) {
-      result.merchant = merchantName;
-      break;
+    if (cleaned.length >= 2 && /[A-Za-z]/.test(cleaned)) {
+      console.log(`✅ Found merchant: "${cleaned}"`);
+      return cleaned;
     }
   }
   
-  // Extract total amount (robust, line-aware)
-  // Reuse lines array from merchant extraction
+  console.log('❌ No merchant found');
+  return undefined;
+};
 
-  const parseAmountStr = (raw: string): number | null => {
-    let a = raw.trim().replace(/[^0-9.,\s$€£]/g, '');
-    // Remove currency symbols and spaces around
-    a = a.replace(/[$€£\s]/g, '');
-    const hasComma = a.includes(',');
-    const hasDot = a.includes('.');
-    let normalized = a;
-    if (hasComma && hasDot) {
-      if (a.lastIndexOf(',') > a.lastIndexOf('.')) {
-        // 1.234,56 => 1234.56
-        normalized = a.replace(/\./g, '').replace(',', '.');
-      } else {
-        // 1,234.56 => 1234.56
-        normalized = a.replace(/,/g, '');
-      }
-    } else if (hasComma && !hasDot) {
-      const parts = a.split(',');
-      if (parts.length === 2 && parts[1].length === 2) {
-        normalized = parts[0].replace(/[^0-9]/g, '') + '.' + parts[1];
-      } else {
-        normalized = a.replace(/,/g, '');
-      }
-    } else {
-      // remove thousand commas if any remain
-      normalized = a.replace(/,(?=\d{3}\b)/g, '');
-    }
-    const num = parseFloat(normalized);
-    return isNaN(num) ? null : num;
-  };
-
-  const amountRegex = /(?:USD|EUR|GBP|CAD|AUD|INR|JPY|CHF|CNY|RMB)?\s*[$€£]?\s*([0-9]{1,3}(?:[.,\s][0-9]{3})*(?:[.,][0-9]{2})|[0-9]+(?:[.,][0-9]{2}))/g;
-  const keywordPriority = ['grand total','total due','amount due','balance due','invoice total','total amount','total'];
-
-  outer: for (const kw of keywordPriority) {
+const extractTotal = (lines: string[], text: string): number | undefined => {
+  console.log('💰 Extracting total amount...');
+  
+  // Look for total keywords with priority
+  const totalKeywords = [
+    'amount', 'total', 'grand total', 'total due', 'amount due', 
+    'balance due', 'invoice total', 'final total'
+  ];
+  
+  // Create a comprehensive amount regex
+  const amountRegex = /\$?\s*([0-9]{1,6}(?:[.,][0-9]{2,3})*(?:\.[0-9]{2})?)/g;
+  
+  // First, try to find amounts near total keywords
+  for (const keyword of totalKeywords) {
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const lower = line.toLowerCase();
-      if (!lower.includes(kw)) continue;
-
-      // Try amounts on the same line first
-      const sameLineMatches = [...line.matchAll(amountRegex)];
-      if (sameLineMatches.length) {
-        const last = sameLineMatches[sameLineMatches.length - 1][1];
-        const val = parseAmountStr(last);
-        if (val && val > 0) { result.total = val; break outer; }
-      }
-
-      // Then try the next line (common in printed receipts)
-      if (i + 1 < lines.length) {
-        const nextLine = lines[i + 1];
-        const nextMatches = [...nextLine.matchAll(amountRegex)];
-        if (nextMatches.length) {
-          const last = nextMatches[nextMatches.length - 1][1];
-          const val = parseAmountStr(last);
-          if (val && val > 0) { result.total = val; break outer; }
+      const line = lines[i].toLowerCase();
+      
+      if (line.includes(keyword)) {
+        console.log(`🎯 Found total keyword "${keyword}" in line: "${lines[i]}"`);
+        
+        // Check current line and next line for amounts
+        const searchLines = [lines[i], lines[i + 1]].filter(Boolean);
+        
+        for (const searchLine of searchLines) {
+          const matches = [...searchLine.matchAll(amountRegex)];
+          if (matches.length > 0) {
+            // Take the last/rightmost amount on the line
+            const amountStr = matches[matches.length - 1][1];
+            const amount = parseAmount(amountStr);
+            if (amount && amount > 0) {
+              console.log(`✅ Found total: $${amount}`);
+              return amount;
+            }
+          }
         }
       }
     }
   }
+  
+  // Fallback: find the largest reasonable amount in the text
+  const allAmounts = [...text.matchAll(amountRegex)]
+    .map(m => parseAmount(m[1]))
+    .filter((amount): amount is number => amount !== null && amount > 0 && amount < 10000);
+  
+  if (allAmounts.length > 0) {
+    const maxAmount = Math.max(...allAmounts);
+    console.log(`💡 Using largest amount as fallback: $${maxAmount}`);
+    return maxAmount;
+  }
+  
+  console.log('❌ No total amount found');
+  return undefined;
+};
 
-  // Fallback: take the maximum amount found in the entire text
-  if (result.total == null) {
-    const allMatches = [...text.matchAll(amountRegex)]
-      .map(m => parseAmountStr(m[1]))
-      .filter((n): n is number => typeof n === 'number' && !isNaN(n));
-    if (allMatches.length) {
-      const max = Math.max(...allMatches);
-      if (max > 0) result.total = max;
+const parseAmount = (amountStr: string): number | null => {
+  // Remove currency symbols and clean up
+  let cleaned = amountStr
+    .replace(/[$€£¥₹]/g, '')
+    .replace(/\s/g, '')
+    .trim();
+  
+  // Handle different decimal separators
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    // Determine which is the decimal separator
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    
+    if (lastDot > lastComma) {
+      // Dot is decimal separator: 1,234.56
+      cleaned = cleaned.replace(/,/g, '');
+    } else {
+      // Comma is decimal separator: 1.234,56
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    }
+  } else if (cleaned.includes(',')) {
+    // Only comma - check if it's decimal or thousands separator
+    const parts = cleaned.split(',');
+    if (parts.length === 2 && parts[1].length === 2) {
+      // Likely decimal: 12,34
+      cleaned = cleaned.replace(',', '.');
+    } else {
+      // Likely thousands: 1,234
+      cleaned = cleaned.replace(/,/g, '');
     }
   }
-
   
-  // Extract date
+  const number = parseFloat(cleaned);
+  return isNaN(number) ? null : number;
+};
+
+const extractDate = (text: string): string | undefined => {
+  console.log('📅 Extracting date...');
+  
   const datePatterns = [
-    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,
-    /(\d{2,4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,
-    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{1,2}),?\s+(\d{2,4})/i,
-    /(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{2,4})/i
+    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g, // DD/MM/YYYY or MM/DD/YYYY
+    /(\d{2,4})[\/\-](\d{1,2})[\/\-](\d{1,2})/g, // YYYY/MM/DD
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{1,2}),?\s+(\d{2,4})/gi, // Month DD, YYYY
+    /(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{2,4})/gi // DD Month YYYY
   ];
   
   for (const pattern of datePatterns) {
-    const match = text.match(pattern);
-    if (match) {
+    const matches = [...text.matchAll(pattern)];
+    for (const match of matches) {
       try {
         let date: Date;
+        
         if (pattern.source.includes('jan|feb')) {
           // Handle month name patterns
           const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-          const monthIndex = monthNames.findIndex(m => match[1].toLowerCase().startsWith(m) || match[2].toLowerCase().startsWith(m));
+          const monthStr = (match[1] || match[2]).toLowerCase();
+          const monthIndex = monthNames.findIndex(m => monthStr.startsWith(m));
+          
           if (monthIndex !== -1) {
-            const day = parseInt(match[2]);
+            const day = parseInt(match[2] || match[1]);
             const year = parseInt(match[3]);
             date = new Date(year < 100 ? year + 2000 : year, monthIndex, day);
           } else {
             continue;
           }
         } else {
-          // Handle numeric date patterns
+          // Handle numeric patterns
           const parts = [match[1], match[2], match[3]].map(p => parseInt(p));
-          let year = parts[2];
-          if (year < 100) year += 2000; // 2-digit years to 20xx
-          // Heuristic: if first part > 12, it is likely DD/MM/YYYY
-          const monthFirst = parts[0] <= 12;
-          const month = monthFirst ? parts[0] : parts[1];
-          const day = monthFirst ? parts[1] : parts[0];
-          date = new Date(year, month - 1, day);
+          let [a, b, c] = parts;
+          
+          // Year normalization
+          if (c < 100) c += 2000;
+          
+          // Determine if it's MM/DD/YYYY or DD/MM/YYYY
+          if (a > 12) {
+            // Must be DD/MM/YYYY
+            date = new Date(c, b - 1, a);
+          } else if (b > 12) {
+            // Must be MM/DD/YYYY
+            date = new Date(c, a - 1, b);
+          } else {
+            // Ambiguous - assume MM/DD/YYYY (US format)
+            date = new Date(c, a - 1, b);
+          }
         }
         
         if (!isNaN(date.getTime())) {
-          result.date = date.toISOString().split('T')[0];
-          break;
+          const dateStr = date.toISOString().split('T')[0];
+          console.log(`✅ Found date: ${dateStr}`);
+          return dateStr;
         }
       } catch (e) {
         continue;
@@ -172,38 +242,49 @@ const parseInvoiceText = (text: string): ParsedInvoice => {
     }
   }
   
-  // Extract category based on merchant keywords
-  const categoryKeywords = {
-    'Food': ['restaurant', 'cafe', 'pizza', 'burger', 'food', 'kitchen', 'diner', 'bistro', 'grill', 'bar', 'grocery', 'supermarket', 'market', 'deli', 'bakery', 'sushi', 'taco', 'bbq', 'walmart', 'target', 'costco', 'aldi', 'tesco', 'carrefour', 'kroger', 'whole foods', 'trader joe', "trader joe's", 'lidl', 'panera', 'chipotle', 'mcdonald', 'kfc', 'burger king', 'domino', 'pizza hut', 'subway', 'wendy', 'taco bell', 'five guys', 'panda express'],
-    'Coffee': ['coffee', 'starbucks', 'espresso', 'latte', 'cappuccino', 'cafe', 'coffeehouse', 'dunkin', 'tim hortons', 'peet', 'caribou'],
-    'Hotel': ['hotel', 'inn', 'resort', 'lodge', 'motel', 'accommodation', 'stay'],
-    'Transportation': ['taxi', 'uber', 'lyft', 'bus', 'train', 'metro', 'transport', 'parking', 'gas', 'fuel', 'ride', 'cab', 'toll', 'petrol', 'diesel', 'shell', 'bp', 'esso', 'chevron', 'exxon', 'arco'],
-    'Entertainment': ['movie', 'theater', 'cinema', 'show', 'concert', 'museum', 'park', 'entertainment'],
-    'Flights': ['airline', 'airways', 'flight', 'airport', 'boarding', 'baggage', 'luggage', 'ticket', 'fare']
+  console.log('❌ No date found');
+  return undefined;
+};
+
+const extractCategory = (text: string, merchant?: string): string | undefined => {
+  console.log('🏷️ Extracting category...');
+  
+  const categories = {
+    'Coffee': [
+      'coffee', 'cafe', 'espresso', 'latte', 'cappuccino', 'macchiato', 'mocha',
+      'starbucks', 'dunkin', 'tim hortons', 'peet', 'caribou', 'coffee shop',
+      'coffeehouse', 'roasters', 'beans'
+    ],
+    'Food': [
+      'restaurant', 'pizza', 'burger', 'food', 'kitchen', 'diner', 'bistro', 
+      'grill', 'bar', 'bakery', 'sushi', 'taco', 'bbq', 'grocery', 'market',
+      'walmart', 'target', 'costco', 'panera', 'chipotle', 'mcdonald', 'kfc'
+    ],
+    'Hotel': [
+      'hotel', 'inn', 'resort', 'lodge', 'motel', 'accommodation', 'stay',
+      'marriott', 'hilton', 'hyatt', 'holiday inn'
+    ],
+    'Transportation': [
+      'taxi', 'uber', 'lyft', 'bus', 'train', 'metro', 'transport', 'parking',
+      'gas', 'fuel', 'shell', 'bp', 'chevron', 'exxon'
+    ],
+    'Entertainment': [
+      'movie', 'theater', 'cinema', 'show', 'concert', 'museum', 'park'
+    ],
+    'Flights': [
+      'airline', 'airways', 'flight', 'airport', 'boarding'
+    ]
   };
   
-  const lowerText = text.toLowerCase();
-  for (const [category, keywords] of Object.entries(categoryKeywords)) {
-    if (keywords.some(keyword => lowerText.includes(keyword))) {
-      result.category = category;
-      break;
+  const searchText = (text + ' ' + (merchant || '')).toLowerCase();
+  
+  for (const [category, keywords] of Object.entries(categories)) {
+    if (keywords.some(keyword => searchText.includes(keyword))) {
+      console.log(`✅ Found category: ${category}`);
+      return category;
     }
   }
   
-  // Fallback merchant extraction if missing
-  if (!result.merchant) {
-    const isMeta = (l: string) => /^(receipt|invoice|bill|tax|date|time|order|table|server|thank|visit|subtotal|total|balance|amount|change|cash|card|visa|mastercard)/i.test(l);
-    const isAddress = (l: string) => /(street|st\.|road|rd\.|ave\.|avenue|blvd\.|boulevard|suite|ste\.|floor|fl\.|zip|postcode|po box|city|state|country)/i.test(l) || /\d{2,}.*\d{2,}/.test(l);
-    const isTooNumeric = (l: string) => (l.replace(/[^0-9]/g, '').length) > (l.replace(/[^A-Za-z]/g, '').length + 2);
-    const top = (typeof lines !== 'undefined' && Array.isArray(lines) ? lines : text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)).slice(0, 12);
-    const candidates = top.filter(l => l.length >= 3 && l.length <= 60 && /[A-Za-z]/.test(l) && !isMeta(l) && !isAddress(l) && !isTooNumeric(l));
-    const brandMatch = (typeof lines !== 'undefined' && Array.isArray(lines) ? lines : top).find(l => /(inc\.?|llc\.?|ltd\.?|gmbh|s\.a\.|pty)/i.test(l));
-    let chosen = candidates[0] || brandMatch;
-    if (chosen) {
-      let clean = chosen.replace(/[*#@]+/g, '').replace(/\s{2,}/g, ' ').trim();
-      result.merchant = clean;
-    }
-  }
-  
-  return result;
+  console.log('❌ No category found');
+  return undefined;
 };

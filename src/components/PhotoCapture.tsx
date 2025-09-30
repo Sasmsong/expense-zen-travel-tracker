@@ -63,19 +63,37 @@ export const PhotoCapture = ({ onCapture, onInvoiceParsed }: PhotoCaptureProps) 
       
       // Start OCR processing
       if (onInvoiceParsed) {
-        console.log('onInvoiceParsed callback provided, starting OCR...');
+        console.log('✅ onInvoiceParsed callback provided, starting OCR...');
+        console.log('📷 Image size:', imageData.length, 'characters');
+        console.log('🖼️ Image type:', imageData.substring(0, 30));
+        
         setIsProcessing(true);
         try {
-          console.log('Processing invoice image...');
+          console.log('🚀 Processing invoice image...');
           const parsedData = await parseInvoiceImage(imageData);
-          console.log('Parsed data:', parsedData);
-          onInvoiceParsed(parsedData);
+          console.log('🎉 Successfully parsed data:', parsedData);
+          
+          if (parsedData && Object.keys(parsedData).length > 0) {
+            onInvoiceParsed(parsedData);
+            toast({
+              title: "Invoice processed!",
+              description: `Found: ${Object.keys(parsedData).filter(key => parsedData[key]).join(', ')}`,
+              variant: "default"
+            });
+          } else {
+            console.log('⚠️ No data extracted from image');
+            toast({
+              title: "No data found",
+              description: "Could not extract invoice data from this image.",
+              variant: "default"
+            });
+          }
         } catch (error) {
-          console.error('Failed to parse invoice:', error);
+          console.error('❌ Failed to parse invoice:', error);
           SecurityMonitor.logSecurityEvent('ocr_processing_error', { error: error?.toString() });
           toast({
             title: "Processing failed",
-            description: "Failed to extract data from the image. Please try again.",
+            description: `OCR error: ${error instanceof Error ? error.message : 'Unknown error'}`,
             variant: "destructive"
           });
         } finally {
