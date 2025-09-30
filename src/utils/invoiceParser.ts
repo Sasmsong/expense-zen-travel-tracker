@@ -22,8 +22,15 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
         return cloudResult;
       }
       console.log('⚠️ Cloud OCR returned no useful data, falling back to local OCR');
-    } catch (cloudError) {
+    } catch (cloudError: any) {
       console.log('⚠️ Cloud OCR failed, falling back to local OCR:', cloudError);
+      
+      // Surface specific errors but continue to fallback
+      if (cloudError.message === 'PAYMENT_REQUIRED') {
+        console.warn('[Parser] Cloud OCR: Payment required, using local OCR');
+      } else if (cloudError.message === 'RATE_LIMITED') {
+        console.warn('[Parser] Cloud OCR: Rate limited, using local OCR');
+      }
     }
 
     // Fallback: Local OCR processing
@@ -385,23 +392,39 @@ const extractCategory = (text: string, merchant?: string): string | undefined =>
 // Cloud OCR using Lovable AI
 const tryCloudOCR = async (imageData: string): Promise<ParsedInvoice | null> => {
   try {
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/receipt-extract`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({ imageData }),
+    const { supabase } = await import('@/integrations/supabase/client');
+    
+    console.log('[Cloud OCR] Starting request...');
+    const { data, error } = await supabase.functions.invoke('receipt-extract', {
+      body: { imageData }
     });
 
-    if (!response.ok) {
-      throw new Error(`Cloud OCR failed: ${response.status}`);
+    if (error) {
+      console.error('[Cloud OCR] Error:', error);
+      if (error.message?.includes('402')) {
+        throw new Error('PAYMENT_REQUIRED');
+      }
+      if (error.message?.includes('429')) {
+        throw new Error('RATE_LIMITED');
+      }
+      return null;
     }
 
-    const result = await response.json();
-    return result.error ? null : result;
-  } catch (error) {
-    console.error('Cloud OCR error:', error);
+    if (!data) {
+      console.warn('[Cloud OCR] No data returned');
+      return null;
+    }
+
+    console.log('[Cloud OCR] Success:', data);
+    
+    // Check if we got meaningful data
+    if (data.merchant || data.total || data.date) {
+      return data;
+    }
+    
     return null;
+  } catch (error) {
+    console.error('[Cloud OCR] Failed:', error);
+    throw error; // Re-throw to surface errors to UI
   }
 };

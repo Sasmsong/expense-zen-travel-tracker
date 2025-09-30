@@ -44,7 +44,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
@@ -88,6 +88,9 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[receipt-extract] AI API error ${response.status}:`, errorText);
+      
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limits exceeded, please try again later.' }), {
           status: 429,
@@ -100,9 +103,8 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      return new Response(JSON.stringify({ error: 'AI processing failed' }), {
+      
+      return new Response(JSON.stringify({ error: `AI processing failed: ${response.status}` }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -112,26 +114,33 @@ serve(async (req) => {
     const aiContent = aiResponse.choices?.[0]?.message?.content;
     
     if (!aiContent) {
-      console.error('No content in AI response:', aiResponse);
+      console.error('[receipt-extract] No content in AI response:', aiResponse);
       return new Response(JSON.stringify({ error: 'No content received from AI' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('🎯 AI response received:', aiContent);
+    console.log('[receipt-extract] AI response content:', aiContent.substring(0, 200));
 
     // Parse the JSON response from AI
     let parsedData: ParsedInvoice;
     try {
       // Clean the response in case AI added extra text
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? jsonMatch[0] : aiContent;
-      parsedData = JSON.parse(jsonStr);
+      let cleanedContent = aiContent;
       
-      console.log('✅ Successfully parsed AI response:', parsedData);
+      // Find JSON object in the response (first { to last })
+      const firstBrace = cleanedContent.indexOf('{');
+      const lastBrace = cleanedContent.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        cleanedContent = cleanedContent.substring(firstBrace, lastBrace + 1);
+      }
+      
+      parsedData = JSON.parse(cleanedContent);
+      console.log('[receipt-extract] Successfully parsed:', parsedData);
     } catch (parseError) {
-      console.error('Failed to parse AI JSON response:', parseError, 'Content:', aiContent);
+      console.error('[receipt-extract] Failed to parse AI response:', aiContent, parseError);
       return new Response(JSON.stringify({ 
         error: 'Failed to parse AI response',
         rawResponse: aiContent 

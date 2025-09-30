@@ -18,6 +18,7 @@ import { Expense } from "@/types/Expense";
 import { getStoredBaseCurrency, convertCurrency, formatCurrency } from "@/utils/currencyUtils";
 import { getRecurringExpenses } from "@/utils/recurringUtils";
 import { InputValidator } from "@/utils/security";
+import { toast } from "@/hooks/use-toast";
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -75,17 +76,21 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
   };
 
   const handleInvoiceParsed = (parsedData: any) => {
-    console.log('Invoice parsed:', parsedData);
+    console.log('[AddExpenseSheet] Parsed data received:', parsedData);
+    
+    let fieldsSet = 0;
     
     // Security: Validate and sanitize parsed data
     if (parsedData.merchant && parsedData.merchant.trim()) {
       const validatedMerchant = InputValidator.validateMerchant(parsedData.merchant.trim());
       setMerchant(validatedMerchant);
+      fieldsSet++;
     }
     
     if (parsedData.total) {
       const validatedAmount = InputValidator.validateAmount(parsedData.total);
       setAmount(validatedAmount.toString());
+      fieldsSet++;
     }
     
     if (parsedData.category) {
@@ -98,11 +103,33 @@ export const AddExpenseSheet = ({ isOpen, onClose, onAddExpense, existingExpense
         setCustomCategory(validatedCategory);
         setShowCustomCategory(true);
       }
+      fieldsSet++;
     }
     
     if (parsedData.date) {
       const validatedDate = InputValidator.validateDate(parsedData.date);
       setDate(validatedDate);
+      fieldsSet++;
+    }
+    
+    // Show feedback to user
+    if (fieldsSet > 0) {
+      toast({
+        title: "Receipt scanned",
+        description: `Detected ${fieldsSet} field${fieldsSet > 1 ? 's' : ''} from receipt`,
+      });
+    } else if (parsedData.rawText) {
+      toast({
+        title: "Text detected",
+        description: "Could not parse specific fields. Please enter details manually.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Scan incomplete",
+        description: "No data extracted. Please try again or enter manually.",
+        variant: "destructive",
+      });
     }
   };
 
