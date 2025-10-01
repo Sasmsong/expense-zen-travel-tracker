@@ -13,27 +13,7 @@ export const parseInvoiceImage = async (imageFile: string): Promise<ParsedInvoic
     console.log('🔍 Starting OCR processing...');
     console.log('📄 Image data preview:', imageFile.substring(0, 100) + '...');
 
-    // Try Cloud OCR first (more reliable)
-    try {
-      console.log('☁️ Attempting Cloud OCR...');
-      const cloudResult = await tryCloudOCR(imageFile);
-      if (cloudResult && (cloudResult.total || cloudResult.merchant || cloudResult.date || cloudResult.category)) {
-        console.log('✅ Cloud OCR successful:', cloudResult);
-        return cloudResult;
-      }
-      console.log('⚠️ Cloud OCR returned no useful data, falling back to local OCR');
-    } catch (cloudError: any) {
-      console.log('⚠️ Cloud OCR failed, falling back to local OCR:', cloudError);
-      
-      // Surface specific errors but continue to fallback
-      if (cloudError.message === 'PAYMENT_REQUIRED') {
-        console.warn('[Parser] Cloud OCR: Payment required, using local OCR');
-      } else if (cloudError.message === 'RATE_LIMITED') {
-        console.warn('[Parser] Cloud OCR: Rate limited, using local OCR');
-      }
-    }
-
-    // Fallback: Local OCR processing
+    // Local OCR processing only (Cloud OCR disabled)
     console.log('🔄 Starting local OCR processing...');
     // Preprocess image to improve OCR success
     const processed = await preprocessImage(imageFile);
